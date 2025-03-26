@@ -14,6 +14,12 @@
 ```text
 boatrace-analyzer/
 ├── data/                  # 生データ（TXTなど）
+│   ├── K_lzh  # 競走成績_lxh
+│   ├── B_lzh  # 番組表_lzh
+│   ├── K_txt  # 競走成績_txt
+│   ├── B_txt  # 番組表_txt
+│   ├── K_txt  # 競走成績_csv
+│   ├── B_csv  # 番組表_csv
 ├── outputs/               # 出力CSV
 ├── scripts/
 │   ├── boatrace_manager.py  # 処理をまとめたクラス
