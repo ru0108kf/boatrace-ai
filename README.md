@@ -18,14 +18,12 @@ boatrace-analyzer/
 │   ├── B_lzh  # 番組表_lzh
 │   ├── K_txt  # 競走成績_txt
 │   ├── B_txt  # 番組表_txt
-├── outputs/               # 出力CSV
-│   ├── K_txt  # 競走成績_csv
+│   ├── K_csv  # 競走成績_csv
 │   ├── B_csv  # 番組表_csv
 ├── scripts/
-│   ├── boatrace_manager.py  # 処理をまとめたクラス
-│   ├── parser_program.py    # 番組表パーサー
-│   ├── parser_result.py     # 結果パーサー
-│   └── scraper.py           # スクレイピング処理
+│   ├── base.py  # 処理をまとめたクラス
+│   ├── scraper.py    # スクレイピング処理
+│   └── analyzer.py     # 分析処理
 ├── main.py                # 実行用スクリプト
 ├── requirements.txt       # 必要ライブラリ
 └── README.md
@@ -34,7 +32,6 @@ boatrace-analyzer/
 - Python 3.9+
 - pandas
 - requests
-- beautifulsoup4
 
 ## Author
 - 管理者：@ru0108kf
