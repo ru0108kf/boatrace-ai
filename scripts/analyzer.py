@@ -27,7 +27,7 @@ class BoatraceAnalyzer(BoatraceBase):
         
         return df
     
-    def aggregate_data(self, start_date, end_date, all_venues=False):
+    def aggregate_data(self, start_date, end_date, venue="全国"):
         file_names = self.generate_date_list(start_date, end_date, "K")
         file_paths = [os.path.join(self.K_csv_folder, f"{file_name}.csv") for file_name in file_names]
 
@@ -56,28 +56,29 @@ class BoatraceAnalyzer(BoatraceBase):
             "恵まれ": "sum"
         }
 
-        if all_venues:
-            results = {}
-            for venue_name, group in combined_df.groupby("レース場"):
-                result = group.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index()
-                result.columns = ["登録番号", "選手名", "艇番", "出走数", "勝利回数", "2着回数", "3着回数", "平均ST", 
-                                "逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"]
-                results[venue_name] = result
-            return results
-        else:
+        if venue=="全国":
             result = combined_df.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index()
             result.columns = ["登録番号", "選手名", "艇番", "出走数", "勝利回数", "2着回数", "3着回数", "平均ST", 
                             "逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"]
             return result
+        
+        else:
+            # レース場が指定された場合、そのレース場のみフィルタリング
+            venue_data = combined_df[combined_df["レース場"] == venue]
+            
+            if venue_data.empty:
+                raise ValueError(f"指定されたレース場「{venue}」のデータが存在しません。")
+            
+            # 指定されたレース場のデータを集計
+            result = venue_data.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index()
+            result.columns = ["登録番号", "選手名", "艇番", "出走数", "勝利回数", "2着回数", "3着回数", "平均ST", 
+                            "逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"]
+            return result
 
-
-#if __name__ == "__main__":
-analyzer = BoatraceAnalyzer(folder = "C:\\Users\\msy-t\\boatrace-ai\\data")
-#result = analyzer.aggregate_data(start_date="2024-11-01", end_date="2025-03-28")
-#result.to_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\aggregated_result.csv", index=False, encoding="shift_jis")
-
-results_by_venue = analyzer.aggregate_data(start_date="2024-11-01", end_date="2025-03-28", all_venues=True)
-for venue_name, result_df in results_by_venue.items():
-    file_path = f"C:\\Users\\msy-t\\boatrace-ai\\data\\{venue_name}_result.csv"
-    result_df.to_csv(file_path, index=False, encoding="shift_jis")
-    print(f"{venue_name} の成績を保存しました: {file_path}")
+if __name__ == "__main__":
+    analyzer = BoatraceAnalyzer(folder = "C:\\Users\\msy-t\\boatrace-ai\\data")
+    result = analyzer.aggregate_data(start_date="2024-11-01", end_date="2025-03-28", venue="全国")
+    result.to_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\全国_result.csv", index=False, encoding="shift_jis")
+    venue_name="住之江"
+    results_by_venue = analyzer.aggregate_data(start_date="2024-11-01", end_date="2025-03-28", venue=venue_name)
+    results_by_venue.to_csv(f"C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\{venue_name}_result.csv", index=False, encoding="shift_jis")

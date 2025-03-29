@@ -195,7 +195,7 @@ class BoatraceScraper(BoatraceBase):
             # レース場の取得
             match_place = re.search(r"ボートレース(.{3})", line)
             if match_place:
-                race_place = match_place.group(1)
+                race_place = match_place.group(1).replace("　", "").strip()
 
             # レース情報の取得
             match_race = re.match(r"([０-９])Ｒ\s+(\S+)", line)
@@ -267,13 +267,14 @@ class BoatraceScraper(BoatraceBase):
         race_place = None
         
         for line in lines:
+            line = line.strip()
             if not line:  # 空行はスキップ
                 continue
         
             # レース場の取得
-            match_place = re.search(r"^.+?［成績］", line)
+            match_place = re.search(r"(^.+?)［成績］", line)
             if match_place:
-                race_place = line[0:3]
+                race_place = match_place.group(1).replace("　", "").strip()
         
             # レース情報の取得
             match_race = re.match(r"([0-9]+)R\s+(\S+).*?H\d+m\s+(\S+)\s+風\s+(\S+)\s+(\d+)m\s+波\s+(\d+)cm", line)
@@ -355,7 +356,7 @@ class BoatraceScraper(BoatraceBase):
 
         print("全処理完了")
 
-    def scrape_and_process_data_for_single_day(self, target_date="2025-03-26", BorK="B"):
+    def scrape_and_process_data_for_single_day(self, target_date="2025-03-26"):
         """指定された1日分の日付でスクレイピングと解凍を行う一連の流れ"""
         print(f"スクレイピング開始: {target_date}")
         self.scrape_data_for_single_day(target_date)
@@ -378,17 +379,16 @@ class BoatraceScraper(BoatraceBase):
             print("K番組表CSV変換完了")
         print("全処理完了")
 
-#if __name__ == "__main__":
+if __name__ == "__main__":
     # 共通設定
-folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
-B_url = "https://www1.mbrace.or.jp/od2/B/dindex.html"
-K_url = "https://www1.mbrace.or.jp/od2/K/dindex.html"
+    folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
+    B_url = "https://www1.mbrace.or.jp/od2/B/dindex.html"
+    K_url = "https://www1.mbrace.or.jp/od2/K/dindex.html"
 
-scraper = BoatraceScraper(folder, BorK="K")
-#scraper.scrape_and_process_data_for_single_day(target_date="2025-03-28")
+    scraper = BoatraceScraper(folder, BorK="B")
+    scraper.scrape_and_process_data_for_single_day(target_date="2025-03-28")
 
-file_lists = scraper.generate_date_list(start_date="2024-03-01", end_date="2025-03-28", BorK="K")
-
-for file_name in file_lists:
-    scraper.parse_K_txt(file_name)
-print("K番組表CSV変換完了")
+    #file_lists = scraper.generate_date_list(start_date="2025-02-01", end_date="2025-03-28", BorK="B")
+    #for file_name in file_lists:
+    #    scraper.parse_B_txt(file_name)
+    #print("CSV変換完了")
