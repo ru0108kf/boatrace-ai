@@ -386,9 +386,9 @@ if __name__ == "__main__":
     K_url = "https://www1.mbrace.or.jp/od2/K/dindex.html"
 
     scraper = BoatraceScraper(folder, BorK="B")
-    scraper.scrape_and_process_data_for_single_day(target_date="2025-03-28")
+    scraper.scrape_and_process_data_for_single_day(target_date="2025-03-30")
 
-    #file_lists = scraper.generate_date_list(start_date="2025-02-01", end_date="2025-03-28", BorK="B")
-    #for file_name in file_lists:
-    #    scraper.parse_B_txt(file_name)
-    #print("CSV変換完了")
+    file_lists = scraper.generate_date_list(start_date="2024-03-01", end_date="2025-03-30", BorK="B")
+    for file_name in file_lists:
+        scraper.parse_B_txt(file_name)
+    print("CSV変換完了")
