@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 import re
+import pandas as pd
 
 class BoatraceBase:
     def __init__(self, folder):
@@ -30,7 +31,7 @@ class BoatraceBase:
         
         return date_list
     
-    def find_current_dates(self,today_date, BorK="K"):
+    def find_current_dates(self, date, BorK):
         """
         指定されたフォルダ内のファイル名を調べて、欠けている日付をリストとして返す
         """
@@ -38,14 +39,18 @@ class BoatraceBase:
         
         # 指定されたフォルダ内の .lzh ファイル名を取得
         file_list = [f for f in os.listdir(path) if f.endswith(".lzh")]
+        
 
         # 今日の日付を取得
-        today = datetime.strptime(today_date, '%Y-%m-%d').date()
+        today = datetime.strptime(date, '%Y-%m-%d').date()
         
         # ファイル名から日付を抽出して、datetime オブジェクトに変換する
         dates = []
         for file_name in file_list:
-            match = re.search(r'k(\d{6})\.lzh', file_name)
+            if BorK == "B":
+                match = re.search(r'b(\d{6})\.lzh', file_name)
+            else:
+                match = re.search(r'k(\d{6})\.lzh', file_name)
             if match:
                 date_str = match.group(1)
                 date = datetime.strptime("20" + date_str, '%Y%m%d').date()
@@ -66,4 +71,36 @@ class BoatraceBase:
         
         return None  # すべて連続している場合は None を返す
     
+    def get_player_numbers_by_race(self, date, venue, race_number):
+        """日付とレース場とレース番号を入力として、対応する選手情報を出力する関数"""
+        
+        file_name = self.generate_date_list(date, date, BorK="B")[0]
+        path = self.folder + "\\B_csv\\" + file_name + ".csv"
+        
+        try:
+            df = pd.read_csv(path, encoding='shift-jis')
+        except FileNotFoundError:
+            raise FileNotFoundError(f"指定されたCSVファイルが見つかりません: {path}")
+        except Exception as e:
+            raise Exception(f"CSVファイルの読み込み中にエラーが発生しました: {e}")
+        
+        # レース場とレース番号でフィルタリング
+        filtered_data = df[(df['レース場'] == venue) & (df['レース番号'] == race_number)]
+        
+        if filtered_data.empty:
+            raise ValueError(f"フィルタリング結果が空です。該当するデータが見つかりません。venue: {venue}, race_number: {race_number}")
+        
+        if len(filtered_data) < 6:
+            raise IndexError(f"フィルタリング後のデータが不足しています。必要なデータ数: 6、取得できたデータ数: {len(filtered_data)}")
+        
+        try:
+            boat_number_1 = filtered_data['登録番号'].iloc[0]
+            boat_number_2 = filtered_data['登録番号'].iloc[1]
+            boat_number_3 = filtered_data['登録番号'].iloc[2]
+            boat_number_4 = filtered_data['登録番号'].iloc[3]
+            boat_number_5 = filtered_data['登録番号'].iloc[4]
+            boat_number_6 = filtered_data['登録番号'].iloc[5]
+        except IndexError as e:
+            raise IndexError("必要なボート番号が不足しています。データが完全ではない可能性があります。") from e
 
+        return boat_number_1, boat_number_2, boat_number_3, boat_number_4, boat_number_5, boat_number_6

@@ -450,46 +450,57 @@ class BoatraceAnalyzer(BoatraceBase):
         )
         six_st_time = six_st_df["平均ST"].iloc[0] if not six_st_df.empty else 0
 
-
         # 結果を辞書形式で返す
         outputs = {
-            "1号艇選手名": one_name,
-            "1号艇1着率": one_rate,
-            "1号艇2号艇にまくられさされ率": one_overtaken_no2_rate,
-            "1号艇3号艇にまくられさされ率": one_overtaken_no3_rate,
-            "1号艇平均ST": one_st_time,
-            "2号艇選手名": two_name,
-            "2号艇差し率": two_sasi_rate,
-            "2号艇まくり率": two_makuri_rate,
-            "2号艇逃し率": two_nogashi_rate,
-            "2号艇1号艇が逃げた時の2-3着率": two_no1_nogashi_23_rate,
-            "2号艇平均ST": two_st_time,
-            "3号艇選手名": three_name,
-            "3号艇まくり1着率": three_makuri_rate,
-            "3号艇まくり差し1着率": three_makurizasi_rate,
-            "3号艇1号艇が逃げた時の2-3着率": three_no1_nogashi_23_rate,
-            "3号艇平均ST": three_st_time,
-            "4号艇選手名": four_name,
-            "4号艇差し1着率": four_sasi_rate,
-            "4号艇まくり1着率": four_makuri_rate,
-            "4号艇まくり差し1着率": four_makurizasi_rate,
-            "4号艇1号艇が逃げた時の2-3着率": four_no1_nogashi_23_rate,
-            "4号艇平均ST": four_st_time,
-            "5号艇選手名": five_name,
-            "5号艇差し1着率": five_sasi_rate,
-            "5号艇まくり1着率": five_makuri_rate,
-            "5号艇まくり差し1着率": five_makurizasi_rate,
-            "5号艇1号艇が逃げた時の2-3着率": five_no1_nogashi_23_rate,
-            "5号艇平均ST": five_st_time,
-            "6号艇選手名": six_name,
-            "6号艇差し1着率": six_sasi_rate,
-            "6号艇まくり1着率": six_makuri_rate,
-            "6号艇まくり差し1着率": six_makurizasi_rate,
-            "6号艇1号艇が逃げた時の2-3着率": six_no1_nogashi_23_rate,
-            "6号艇平均ST": six_st_time
+            "1号艇": {
+                "選手名": one_name,
+                "1着率": one_rate,
+                "2号艇にまくられさされ率": one_overtaken_no2_rate,
+                "3号艇にまくられさされ率": one_overtaken_no3_rate,
+                "平均ST": one_st_time
+                },
+            "2号艇": {
+                "選手名": two_name,
+                "差し率": two_sasi_rate,
+                "まくり率": two_makuri_rate,
+                "逃し率": two_nogashi_rate,
+                "1号艇が逃げた時の2-3着率": two_no1_nogashi_23_rate,
+                "平均ST": two_st_time
+                },
+            "3号艇": {
+                "選手名": three_name,
+                "まくり1着率": three_makuri_rate,
+                "まくり差し1着率": three_makurizasi_rate,
+                "1号艇が逃げた時の2-3着率": three_no1_nogashi_23_rate,
+                "平均ST": three_st_time
+                },
+            "4号艇": {
+                "選手名": four_name,
+                "差し1着率": four_sasi_rate,
+                "まくり1着率": four_makuri_rate,
+                "まくり差し1着率": four_makurizasi_rate,
+                "1号艇が逃げた時の2-3着率": four_no1_nogashi_23_rate,
+                "平均ST": four_st_time
+                },
+            "5号艇": {
+                "選手名": five_name,
+                "差し1着率": five_sasi_rate,
+                "まくり1着率": five_makuri_rate,
+                "まくり差し1着率": five_makurizasi_rate,
+                "1号艇が逃げた時の2-3着率": five_no1_nogashi_23_rate,
+                "平均ST": five_st_time
+                },
+            "6号艇": {
+                "選手名": six_name,
+                "差し1着率": six_sasi_rate,
+                "まくり1着率": six_makuri_rate,
+                "まくり差し1着率": six_makurizasi_rate,
+                "1号艇が逃げた時の2-3着率": six_no1_nogashi_23_rate,
+                "平均ST": six_st_time
+                }
             }
         return outputs
-
+        
 if __name__ == "__main__":
     analyzer = BoatraceAnalyzer(folder = "C:\\Users\\msy-t\\boatrace-ai\\data")
     start_date = "2024-11-01"

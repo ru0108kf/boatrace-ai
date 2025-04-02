@@ -8,6 +8,8 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
 
 import re
 import pandas as pd
@@ -379,6 +381,149 @@ class BoatraceScraper(BoatraceBase):
             print("K番組表CSV変換完了")
         print("全処理完了")
 
+class BoatraceLatestDataScraper():
+    
+    def scrape_the_latest_info(self,url):
+        # Seleniumの設定
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")  # ヘッドレスモードでブラウザを表示せずに実行
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        # ChromeDriverを自動でインストールして取得
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+
+        # URLを指定
+        driver.get(url)
+
+        # ページを完全にロードするまで待機
+        time.sleep(3)
+
+        # 指定されたセクションの HTML を取得
+        try:
+            section = driver.find_element(By.XPATH, '/html/body/div[8]/div[1]/section')
+            table_html = section.get_attribute('outerHTML')
+        except Exception as e:
+            print(f"エラーが発生しました: {e}")
+            driver.quit()
+            exit()
+
+        # BeautifulSoupを使ってテーブルをパース
+        soup = BeautifulSoup(table_html, 'html.parser')
+
+        # 表の中で必要な部分のみ抽出
+        target_table = soup.find_all('tr')
+
+        # データを保存するリスト
+        data = []
+        for row in target_table:
+            cols = [col.text.strip() for col in row.find_all(['th', 'td'])]
+            if cols:  # 空でない行を追加
+                data.append(cols)
+
+        # DataFrame に変換
+        df = pd.DataFrame(data)
+
+        # ブラウザを終了
+        driver.quit()
+        
+
+        # 抽出対象の項目名
+        target_rows = ['展示', '周回', '周り足', "直線", "ST"]
+
+        # データフレーム内の各行の最初の要素を確認し、ターゲットの行を抽出
+        filtered_df = df[df.iloc[:, 0].astype(str).isin(target_rows)].copy()
+
+        # 必要に応じて列名を設定
+        filtered_df.columns = ['項目', '1号艇', '2号艇', '3号艇', '4号艇', '5号艇', '6号艇']
+        
+        return filtered_df
+    
+    def make_url(self, place_name, race_no, date):
+        """
+        指定されたURLを基に、最新の情報を取得するためのURLを生成する。
+        
+        :param url: 基となるURL
+        :return: 最新情報を取得するためのURL
+        """
+        place_no = {
+            "桐生": 1, "戸田": 2, "江戸川": 3, "平和島": 4, "多摩川": 5, "浜名湖": 6,
+            "蒲郡": 7, "常滑": 8, "津": 9, "三国": 10, "びわこ": 11, "住之江": 12,
+            "尼崎": 13, "鳴門": 14, "丸亀": 15, "児島": 16, "宮島": 17, "徳山": 18,
+            "下関": 19, "若松": 20, "芦屋": 21, "福岡": 22, "唐津": 23, "大村": 24
+        }
+        place_number = place_no.get(place_name)
+        if place_number is None:
+            return "指定された開催地が見つかりません。"
+
+        try:
+            # 日付の形式を確認（例: 2025-03-31）
+            date_obj = datetime.strptime(date, "%Y-%m-%d")
+            formatted_date = date_obj.strftime("%Y%m%d")
+        except ValueError:
+            return "日付の形式が正しくありません。'YYYY-MM-DD' の形式で入力してください。"
+        
+        # レース番号の確認
+        if not (1 <= race_no <= 12):
+            return "レース番号は1から12の間で指定してください。"
+        
+        # URLを作成
+        url = f"https://kyoteibiyori.com/race_shusso.php?place_no={place_number}&race_no={race_no}&hiduke={formatted_date}&slider=4"
+        return url
+    
+    def get_latest_boatrace_data(self, place_name, race_no, date):
+        """
+        最新のレースデータを取得する
+        """
+        url = self.make_url(place_name, race_no, date)
+        df = self.scrape_the_latest_info(url)
+        outputs = {
+            "1号艇": {
+                "展示": df["1号艇"][df["項目"]=="展示"].values[0],
+                "周回": df["1号艇"][df["項目"]=="周回"].values[0],
+                "周り足": df["1号艇"][df["項目"]=="周り足"].values[0],
+                "直線": df["1号艇"][df["項目"]=="直線"].values[0],
+                "ST": df["1号艇"][df["項目"]=="ST"].values[0]
+            },
+            "2号艇": {
+                "展示": df["2号艇"][df["項目"]=="展示"].values[0],
+                "周回": df["2号艇"][df["項目"]=="周回"].values[0],
+                "周り足": df["2号艇"][df["項目"]=="周り足"].values[0],
+                "直線": df["2号艇"][df["項目"]=="直線"].values[0],
+                "ST": df["2号艇"][df["項目"]=="ST"].values[0]
+            },
+            "3号艇": {
+                "展示": df["3号艇"][df["項目"]=="展示"].values[0],
+                "周回": df["3号艇"][df["項目"]=="周回"].values[0],
+                "周り足": df["3号艇"][df["項目"]=="周り足"].values[0],
+                "直線": df["3号艇"][df["項目"]=="直線"].values[0],
+                "ST": df["3号艇"][df["項目"]=="ST"].values[0]
+            },
+            "4号艇": {
+                "展示": df["4号艇"][df["項目"]=="展示"].values[0],
+                "周回": df["4号艇"][df["項目"]=="周回"].values[0],
+                "周り足": df["4号艇"][df["項目"]=="周り足"].values[0],
+                "直線": df["4号艇"][df["項目"]=="直線"].values[0],
+                "ST": df["4号艇"][df["項目"]=="ST"].values[0]
+            },
+            "5号艇": {
+                "展示": df["5号艇"][df["項目"]=="展示"].values[0],
+                "周回": df["5号艇"][df["項目"]=="周回"].values[0],
+                "周り足": df["5号艇"][df["項目"]=="周り足"].values[0],
+                "直線": df["5号艇"][df["項目"]=="直線"].values[0],
+                "ST": df["5号艇"][df["項目"]=="ST"].values[0]
+            },
+            "6号艇": {
+                "展示": df["6号艇"][df["項目"]=="展示"].values[0],
+                "周回": df["6号艇"][df["項目"]=="周回"].values[0],
+                "周り足": df["6号艇"][df["項目"]=="周り足"].values[0],
+                "直線": df["6号艇"][df["項目"]=="直線"].values[0],
+                "ST": df["6号艇"][df["項目"]=="ST"].values[0]
+            }
+        }
+        return outputs
+    
+
 if __name__ == "__main__":
     # 共通設定
     folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
@@ -391,4 +536,3 @@ if __name__ == "__main__":
     file_lists = scraper.generate_date_list(start_date="2024-03-01", end_date="2025-03-30", BorK="B")
     for file_name in file_lists:
         scraper.parse_B_txt(file_name)
-    print("CSV変換完了")
