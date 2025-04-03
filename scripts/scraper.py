@@ -383,7 +383,9 @@ class BoatraceScraper(BoatraceBase):
 
 class BoatraceLatestDataScraper():
     
-    def scrape_the_latest_info(self,url):
+    def scrape_the_latest_info(self,place_name, race_no, date):
+        
+        url = self.make_url(place_name, race_no, date)
         # Seleniumの設定
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # ヘッドレスモードでブラウザを表示せずに実行
@@ -438,7 +440,53 @@ class BoatraceLatestDataScraper():
         filtered_df.columns = ['項目', '1号艇', '2号艇', '3号艇', '4号艇', '5号艇', '6号艇']
         
         return filtered_df
-    
+
+    def scrape_wether(self, place_name, race_no, date):
+        place_en_name = {
+            "桐生": "kiryu", "戸田": "toda", "江戸川": "edogawa", "平和島": "heiwajima", "多摩川": "tamagawa", "浜名湖": "hamanako",
+            "蒲郡": "gamagori", "常滑": "tokoname", "津": "tsu", "三国": "mikuni", "びわこ": "biwako", "住之江": "suminoe",
+            "尼崎": "amagasaki", "鳴門": "naruto", "丸亀": "marugame", "児島": "kojima", "宮島": "miyajima", "徳山": "tokuyama",
+            "下関": "simonoseki", "若松": "wakamatsu", "芦屋": "asiya", "福岡": "fukuoka", "唐津": "karatsu", "大村": "oomura"
+        }    
+        place_e_name = place_en_name.get(place_name)
+        base_url = "https://boaters-boatrace.com/race/{place_name}/{date}/{race_no}R?content=last-minute&last-minute-content=last-minute"
+        url = base_url.format(place_name=place_e_name, date=date, race_no=race_no)
+        
+        # Seleniumの設定
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        # ChromeDriverを自動でインストールして取得
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+
+        # URLを指定
+        driver.get(url)
+
+        # ページを完全にロードするまで待機
+        time.sleep(3)
+
+        # ページ全体の HTML を取得
+        page_html = driver.page_source
+
+        # BeautifulSoupでパース
+        soup = BeautifulSoup(page_html, 'html.parser')
+
+        # <p> タグの中からクラス名 'chakra-text' を持つ要素を全て抽出
+        data_elements = soup.find_all('p', class_="chakra-text css-86z7wg")
+
+        # 抽出したデータを保存するリスト
+        data = [element.get_text(strip=True) for element in data_elements]
+
+        # データフレームに変換
+        df = pd.DataFrame(data, columns=["気象情報"])
+
+        # ブラウザを終了
+        driver.quit()
+
+        return df
+
     def make_url(self, place_name, race_no, date):
         """
         指定されたURLを基に、最新の情報を取得するためのURLを生成する。
@@ -475,8 +523,8 @@ class BoatraceLatestDataScraper():
         """
         最新のレースデータを取得する
         """
-        url = self.make_url(place_name, race_no, date)
-        df = self.scrape_the_latest_info(url)
+        df = self.scrape_the_latest_info(place_name, race_no, date)
+        wether_df = self.scrape_wether(place_name, race_no, date)
         outputs = {
             "1号艇": {
                 "展示": df["1号艇"][df["項目"]=="展示"].values[0],
@@ -519,6 +567,14 @@ class BoatraceLatestDataScraper():
                 "周り足": df["6号艇"][df["項目"]=="周り足"].values[0],
                 "直線": df["6号艇"][df["項目"]=="直線"].values[0],
                 "ST": df["6号艇"][df["項目"]=="ST"].values[0]
+            },
+            "気象情報": { 
+                "風速": wether_df.iloc[0, 0],
+                "風向き": wether_df.iloc[1, 0],
+                "天候": wether_df.iloc[2, 0],
+                "気温": wether_df.iloc[3, 0],
+                "波高": wether_df.iloc[4, 0],
+                "水温": wether_df.iloc[5, 0],
             }
         }
         return outputs
