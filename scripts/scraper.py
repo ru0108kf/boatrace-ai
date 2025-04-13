@@ -17,18 +17,16 @@ import pandas as pd
 from base import BoatraceBase
 
 class BoatraceScraper(BoatraceBase):
-    def __init__(self,folder,
-                 B_url="https://www1.mbrace.or.jp/od2/B/dindex.html",
-                 K_url="https://www1.mbrace.or.jp/od2/K/dindex.html",
-                 BorK="B"):
+    def __init__(self,folder,BorK="B"):
         super().__init__(folder)
         self.BorK = BorK
         self.download_folder = os.path.join(self.folder, f"{BorK}_lzh")
         self.kaitou_folder = os.path.join(self.folder, f"{BorK}_txt")
         self.csv_folder = os.path.join(self.folder,f"{BorK}_csv")
+        self.odds_folder = os.path.join(self.folder,"o_csv")
         os.makedirs(self.download_folder, exist_ok=True)
         os.makedirs(self.kaitou_folder, exist_ok=True)
-        self.url = B_url if BorK == "B" else K_url
+        self.url = "https://www1.mbrace.or.jp/od2/B/dindex.html" if BorK == "B" else "https://www1.mbrace.or.jp/od2/K/dindex.html"
         
         # Chrome options for downloading
         self.options = webdriver.ChromeOptions()
@@ -56,59 +54,13 @@ class BoatraceScraper(BoatraceBase):
         
         # LZHファイル内の実際のファイル名を取得
         info = file.infolist()
-        name = info[0].filename  
+        name = info[0].filename
 
         # 解凍したファイルを保存
         with open(os.path.join(self.kaitou_folder, name), "wb") as f:
             f.write(file.read(name))
 
-    def scrape_data_for_single_day(self, target_date):
-        """指定された1日の日付のデータをダウンロード"""
-        
-        browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.options)
-        browser.implicitly_wait(10)  # 最大10秒待機
-    
-        try:
-            browser.get(self.url)
-    
-            # フレームの切り替え (もしフレーム内にある場合)
-            browser.switch_to.frame('menu')
-            
-            year, month, day = map(int,target_date.split('-'))
-            now = datetime.now()
-            months_ago = (now.year - year) * 12 + (now.month - month)
-    
-            # 月のドロップダウンを選択
-            dropdown = browser.find_element(By.NAME, 'MONTH')
-            select = Select(dropdown)
-            select.select_by_index(months_ago+1)
-            
-            # フレームをリセット
-            browser.switch_to.default_content()
-            time.sleep(1)
-
-            # "JYOU" フレームに切り替え
-            browser.switch_to.frame("JYOU")
-
-            # ラジオボタンを取得しクリックしてダウンロード
-            radio_buttons = browser.find_elements(By.XPATH, "//*[@type='radio']")
-            radio_buttons[day-1].click()
-            time.sleep(1)
-            download_button = browser.find_element(By.XPATH, "//*[@value='ダウンロード開始']")
-            download_button.click()
-            time.sleep(2)
-            
-            # フレームをリセット
-            browser.switch_to.default_content()
-            time.sleep(2)
-        
-        except Exception as e:
-            print(f"エラーが発生しました: {e}")
-            traceback.print_exc()  # エラーの詳細を表示
-        finally:
-            browser.quit()
-
-    def scrape_data_for_date_range(self, start_date, end_date):
+    def scrape_data(self, start_date, end_date):
         """指定された日付範囲のデータをまとめてダウンロード"""
         current_date = datetime.strptime(start_date, "%Y-%m-%d")
         end_date_dt = datetime.strptime(end_date, "%Y-%m-%d")
@@ -170,7 +122,7 @@ class BoatraceScraper(BoatraceBase):
 
     def parse_B_txt(self, file_name):
         """
-        番組表のテキストファイルを読み込み、レースデータを解析してDataFrameを返す。
+        番組表のtxtを解析し、 DataFrame に変換する
 
         :param file_name: 解析するテキストファイルの名前
         :return: 解析したDataFrame
@@ -202,9 +154,12 @@ class BoatraceScraper(BoatraceBase):
             # レース情報の取得
             match_race = re.match(r"([０-９])Ｒ\s+(\S+)", line)
             if match_race:
+                race_number_zen = match_race.group(1)
+                zen_to_han = str.maketrans("０１２３４５６７８９", "0123456789")
+                race_number_han = race_number_zen.translate(zen_to_han)  # 半角に変換
                 race_info = {
                     "レース場": race_place,
-                    "レース番号": match_race.group(1),
+                    "レース番号": race_number_han,
                     "レース種別": match_race.group(2)
                 }
 
@@ -250,9 +205,9 @@ class BoatraceScraper(BoatraceBase):
 
     def parse_K_txt(self, file_name):
         """
-        txtからレース成績を解析し、DataFrame に変換する
+        レース成績のtxtを解析し、DataFrame に変換する
         
-        :param file_path: 解析するテキストファイルのパス
+        :param file_name: 解析するテキストファイルの名前
         :return: 解析したDataFrame
         """
         os.makedirs(self.csv_folder, exist_ok=True)  # 保存先フォルダがなければ作成
@@ -305,8 +260,8 @@ class BoatraceScraper(BoatraceBase):
                     "艇番": line[4:6].strip(),
                     "登録番号": line[6:11].strip(),
                     "選手名": line[11:19].replace("　", "").strip(),
-                    "モーター": line[19:22].strip(),
-                    "ボート": line[22:27].strip(),
+                    "モーター番号": line[19:22].strip(),
+                    "ボート番号": line[22:27].strip(),
                     "展示タイム": line[27:33].strip(),
                     "進入": line[33:37].strip(),
                     "スタートタイミング": line[37:45].strip(),
@@ -319,9 +274,9 @@ class BoatraceScraper(BoatraceBase):
         
         # DataFrame 変換
         columns = [
-            "レース場", "レース番号", "レース種別", "天候", "風向", "風速(m)", "波高(cm)", "決まり手",
-            "着順", "艇番", "登録番号", "選手名", "モーター", "ボート", "展示タイム", 
-            "進入", "スタートタイミング", "レースタイム"
+            "レース場", "レース番号", "レース種別", "艇番", "登録番号", "選手名", "モーター番号", "ボート番号",
+            "天候", "風向", "風速(m)", "波高(cm)", "展示タイム",
+            "着順", "決まり手", "進入", "スタートタイミング", "レースタイム"
         ]
         
         df = pd.DataFrame(race_data, columns=columns)
@@ -330,15 +285,67 @@ class BoatraceScraper(BoatraceBase):
         df.to_csv(csv_path, index=False, encoding="shift_jis")
         
         return df
+    
+    def parse_all_odds_from_K(self,file_name):
+        os.makedirs(self.odds_folder, exist_ok=True)  # 保存先フォルダがなければ作成
+        
+        # txtファイルのパスを作成
+        txt_file_path = os.path.join(self.folder+"\\K_txt", f"{file_name}.txt")
+        
+        file_date = "20" + file_name[1:3] + "-" + file_name[3:5] + "-" + file_name[5:7]
+        
+        # ファイルの読み込み
+        with open(txt_file_path, "r", encoding="shift_jis") as f:
+            lines = f.readlines()
 
-    def scrape_and_process_data_for_date_range(self, start_date, end_date):
+        odds_data = []
+        current_place = None
+        race_number = None
+
+        for line in lines:
+            line = line.strip()
+
+            # 場所取得（例: ボートレース大村）
+            if "ボートレース" in line:
+                match = re.search(r"ボートレース(.+)", line)
+                if match:
+                    current_place = match.group(1).replace("　", "").strip()
+
+            # レース番号取得（例: " 1R"）
+            match_race = re.match(r"^\s*(\d{1,2})R", line)
+            if match_race:
+                race_number = int(match_race.group(1))
+
+            # 舟券種ごとのパターンマッチング
+            for bet_type in ["単勝", "複勝", "２連単", "２連複", "拡連複", "３連単", "３連複"]:
+                if line.startswith(bet_type):
+                    # 組合せと払戻金をすべて抽出（同じ行に複数あるため）
+                    matches = re.findall(r"(\d(?:-\d)?(?:-\d)?)\s+([\d,]+)", line)
+                    for combo, payout in matches:
+                        odds_data.append({
+                            "日付": file_date,
+                            "レース場": current_place,
+                            "レース番号": race_number,
+                            "舟券種": bet_type,
+                            "組合せ": combo,
+                            "払戻金": int(payout.replace(",", ""))
+                        })
+
+        df = pd.DataFrame(odds_data)
+        csv_path = os.path.join(self.odds_folder, f"o{file_name}.csv")
+        df.to_csv(csv_path, index=False, encoding="shift_jis")
+        return df
+
+    def scrape_and_process_data(self, start_date, end_date):
         """スクレイピングと解凍, CSVに変換までを行う一連の流れ"""
         
         print(f"スクレイピング開始: {start_date} ～ {end_date}")
-        self.scrape_data_for_date_range(start_date, end_date)
+        self.scrape_data(start_date, end_date)
         print("スクレイピング完了")
-
-        file_lists = self.generate_date_list(start_date, end_date, BorK=self.BorK)
+        
+        file_lists = []
+        for file in self.generate_date_list(start_date, end_date):
+            file_lists.append(self.BorK + file)
         
         print("解凍処理開始")
         for file_name in file_lists:
@@ -354,38 +361,39 @@ class BoatraceScraper(BoatraceBase):
             print("番組表テキストの解析（K方式）開始")
             for file_name in file_lists:
                 self.parse_K_txt(file_name)
+                self.parse_all_odds_from_K(file_name)
             print("K番組表CSV変換完了")
 
-        print("全処理完了")
-
-    def scrape_and_process_data_for_single_day(self, target_date="2025-03-26"):
-        """指定された1日分の日付でスクレイピングと解凍を行う一連の流れ"""
-        print(f"スクレイピング開始: {target_date}")
-        self.scrape_data_for_single_day(target_date)
-        print("スクレイピング完了")
-
-        year, month, day = target_date.split("-")
-        file_name = self.BorK + year[2:] + month + day
-        
-        print("解凍処理開始")
-        self.extract_lzh_file(file_name)
-        print("解凍処理完了")
-
-        if self.BorK == "B":
-            print("番組表テキストの解析（B方式）開始")
-            self.parse_B_txt(file_name)
-            print("B番組表CSV変換完了")
-        elif self.BorK == "K":
-            print("番組表テキストの解析（K方式）開始")
-            self.parse_K_txt(file_name)
-            print("K番組表CSV変換完了")
         print("全処理完了")
 
 class BoatraceLatestDataScraper():
-    
     def scrape_the_latest_info(self,place_name, race_no, date):
+        """直前情報をボートレース日和からスクレイピング"""
+        place_no = {
+            "桐生": 1, "戸田": 2, "江戸川": 3, "平和島": 4, "多摩川": 5, "浜名湖": 6,
+            "蒲郡": 7, "常滑": 8, "津": 9, "三国": 10, "びわこ": 11, "住之江": 12,
+            "尼崎": 13, "鳴門": 14, "丸亀": 15, "児島": 16, "宮島": 17, "徳山": 18,
+            "下関": 19, "若松": 20, "芦屋": 21, "福岡": 22, "唐津": 23, "大村": 24
+        }
+        place_number = place_no.get(place_name)
+        if place_number is None:
+            return "The specified venue cannot be found."
+
+        try:
+            # 日付の形式を確認（例: 2025-03-31）
+            date_obj = datetime.strptime(date, "%Y-%m-%d")
+            formatted_date = date_obj.strftime("%Y%m%d")
+        except ValueError:
+            return "Date format is incorrect. Please enter the date in the format 'YYYYY-MM-DD'."
         
-        url = self.make_url(place_name, race_no, date)
+        # レース番号の確認
+        if not (1 <= race_no <= 12):
+            return "Race numbers must be between 1 and 12."
+        
+        # URLを作成
+        url = f"https://kyoteibiyori.com/race_shusso.php?place_no={place_number}&race_no={race_no}&hiduke={formatted_date}&slider=4"
+        print(url)
+        
         # Seleniumの設定
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # ヘッドレスモードでブラウザを表示せずに実行
@@ -429,7 +437,6 @@ class BoatraceLatestDataScraper():
         # ブラウザを終了
         driver.quit()
         
-
         # 抽出対象の項目名
         target_rows = ['展示', '周回', '周り足', "直線", "ST"]
 
@@ -442,15 +449,29 @@ class BoatraceLatestDataScraper():
         return filtered_df
 
     def scrape_wether(self, place_name, race_no, date):
+        """
+        直前の天気情報をボーダースからスクレイピング
+        """
         place_en_name = {
             "桐生": "kiryu", "戸田": "toda", "江戸川": "edogawa", "平和島": "heiwajima", "多摩川": "tamagawa", "浜名湖": "hamanako",
             "蒲郡": "gamagori", "常滑": "tokoname", "津": "tsu", "三国": "mikuni", "びわこ": "biwako", "住之江": "suminoe",
             "尼崎": "amagasaki", "鳴門": "naruto", "丸亀": "marugame", "児島": "kojima", "宮島": "miyajima", "徳山": "tokuyama",
             "下関": "simonoseki", "若松": "wakamatsu", "芦屋": "asiya", "福岡": "fukuoka", "唐津": "karatsu", "大村": "oomura"
         }    
-        place_e_name = place_en_name.get(place_name)
-        base_url = "https://boaters-boatrace.com/race/{place_name}/{date}/{race_no}R?content=last-minute&last-minute-content=last-minute"
-        url = base_url.format(place_name=place_e_name, date=date, race_no=race_no)
+        place_name = place_en_name.get(place_name)
+        if place_name is None:
+            return "The specified venue cannot be found."
+        
+        try:
+            datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Date format is incorrect. Please enter the date in the format 'YYYYY-MM-DD'.")
+        
+        if not (1 <= race_no <= 12):
+            return "Race numbers must be between 1 and 12."
+        
+        url = f"https://boaters-boatrace.com/race/{place_name}/{date}/{race_no}R?content=last-minute&last-minute-content=last-minute"
+        print(url)
         
         # Seleniumの設定
         chrome_options = Options()
@@ -486,45 +507,32 @@ class BoatraceLatestDataScraper():
         driver.quit()
 
         return df
-
-    def make_url(self, place_name, race_no, date):
-        """
-        指定されたURLを基に、最新の情報を取得するためのURLを生成する。
-        
-        :param url: 基となるURL
-        :return: 最新情報を取得するためのURL
-        """
-        place_no = {
-            "桐生": 1, "戸田": 2, "江戸川": 3, "平和島": 4, "多摩川": 5, "浜名湖": 6,
-            "蒲郡": 7, "常滑": 8, "津": 9, "三国": 10, "びわこ": 11, "住之江": 12,
-            "尼崎": 13, "鳴門": 14, "丸亀": 15, "児島": 16, "宮島": 17, "徳山": 18,
-            "下関": 19, "若松": 20, "芦屋": 21, "福岡": 22, "唐津": 23, "大村": 24
-        }
-        place_number = place_no.get(place_name)
-        if place_number is None:
-            return "指定された開催地が見つかりません。"
-
-        try:
-            # 日付の形式を確認（例: 2025-03-31）
-            date_obj = datetime.strptime(date, "%Y-%m-%d")
-            formatted_date = date_obj.strftime("%Y%m%d")
-        except ValueError:
-            return "日付の形式が正しくありません。'YYYY-MM-DD' の形式で入力してください。"
-        
-        # レース番号の確認
-        if not (1 <= race_no <= 12):
-            return "レース番号は1から12の間で指定してください。"
-        
-        # URLを作成
-        url = f"https://kyoteibiyori.com/race_shusso.php?place_no={place_number}&race_no={race_no}&hiduke={formatted_date}&slider=4"
-        return url
-    
+   
     def get_latest_boatrace_data(self, place_name, race_no, date):
         """
         最新のレースデータを取得する
         """
         df = self.scrape_the_latest_info(place_name, race_no, date)
         wether_df = self.scrape_wether(place_name, race_no, date)
+        
+        weather_info = {}
+
+        # インデックス数による場合分け
+        if len(wether_df) == 5:
+            weather_info["風速"] = "N/A"
+            weather_info["風向き"] = "N/A"
+            weather_info["天候"] = wether_df.iloc[1, 0]
+            weather_info["気温"] = wether_df.iloc[2, 0]
+            weather_info["波高"] = wether_df.iloc[3, 0]
+            weather_info["水温"] = wether_df.iloc[4, 0]
+        elif len(wether_df) == 6:
+            weather_info["風速"] = wether_df.iloc[0, 0]
+            weather_info["風向き"] = wether_df.iloc[1, 0]
+            weather_info["天候"] = wether_df.iloc[2, 0]
+            weather_info["気温"] = wether_df.iloc[3, 0]
+            weather_info["波高"] = wether_df.iloc[4, 0]
+            weather_info["水温"] = wether_df.iloc[5, 0]
+        
         outputs = {
             "1号艇": {
                 "展示": df["1号艇"][df["項目"]=="展示"].values[0],
@@ -568,27 +576,33 @@ class BoatraceLatestDataScraper():
                 "直線": df["6号艇"][df["項目"]=="直線"].values[0],
                 "ST": df["6号艇"][df["項目"]=="ST"].values[0]
             },
-            "気象情報": { 
-                "風速": wether_df.iloc[0, 0],
-                "風向き": wether_df.iloc[1, 0],
-                "天候": wether_df.iloc[2, 0],
-                "気温": wether_df.iloc[3, 0],
-                "波高": wether_df.iloc[4, 0],
-                "水温": wether_df.iloc[5, 0],
-            }
+            "気象情報": weather_info
         }
         return outputs
     
 
 if __name__ == "__main__":
-    # 共通設定
+    # ==================変更すべき欄==================
     folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
-    B_url = "https://www1.mbrace.or.jp/od2/B/dindex.html"
-    K_url = "https://www1.mbrace.or.jp/od2/K/dindex.html"
-
-    scraper = BoatraceScraper(folder, BorK="B")
-    scraper.scrape_and_process_data_for_single_day(target_date="2025-03-30")
-
-    file_lists = scraper.generate_date_list(start_date="2024-03-01", end_date="2025-03-30", BorK="B")
-    for file_name in file_lists:
-        scraper.parse_B_txt(file_name)
+    # ==================変更してもOK==================
+    scraper = BoatraceScraper(folder, BorK="K")
+            
+    today_date = "2025-04-10"
+    today_datetime = datetime.strptime(today_date, '%Y-%m-%d')
+    yesterday = (today_datetime - timedelta(days=1)).strftime('%Y-%m-%d')
+    # ===============成績表スクレイピング===============
+    scraperK = BoatraceScraper(folder, BorK="K")
+    current_date = scraperK.find_current_dates(date=yesterday,BorK="K")
+    if current_date!=None:
+        if current_date==today_date:
+            scraperK.scrape_and_process_data(start_date=yesterday,end_date=yesterday)
+        else:
+            scraperK.scrape_and_process_data(start_date=current_date,end_date=yesterday)
+    # ===============番組表スクレイピング===============
+    scraperB = BoatraceScraper(folder, BorK="B")
+    current_date = scraperB.find_current_dates(date=today_date,BorK="B")
+    if current_date!=None:
+        if current_date==today_date:
+            scraperB.scrape_and_process_data(start_date=yesterday,end_date=yesterday)
+        else:
+            scraperB.scrape_and_process_data(start_date=current_date,end_date=today_date)
