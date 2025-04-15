@@ -149,9 +149,20 @@ class BoatraceML(BoatraceAnalyzer):
         
         return X,y,mean,std
 
-    def preprocess_binaly(self,df):
-        # ======== ラベル作成：1号艇が勝ったか？ ========
-        df['target'] = df['1着艇'].apply(lambda x: 1 if x == 1 else 0)
+    def preprocess_binary(self, df, boat_number=1,is_place="first"):
+        """
+        前処理関数
+        :param df: 入力データフレーム
+        :param boat_number: 対象艇番号 (1-6)
+        :return: X(特徴量), y(ラベル), mean(平均), std(標準偏差)
+        """
+        # ======== ラベル作成：指定艇が1着か?2着以内か?3着以内か? ========
+        if is_place == 'first':
+            df['target'] = df[['1着艇']].apply(lambda x: 1 if boat_number in x.values else 0, axis=1)
+        elif is_place == 'second':
+            df['target'] = df[['1着艇', '2着艇']].apply(lambda x: 1 if boat_number in x.values else 0, axis=1)
+        elif is_place == 'third':
+            df['target'] = df[['1着艇', '2着艇', '3着艇']].apply(lambda x: 1 if boat_number in x.values else 0, axis=1)
 
         # ======== 特徴量前処理 ========
         df = df.drop(columns=['日付', 'レース番号', '1着艇', '2着艇', '3着艇'])
@@ -169,14 +180,14 @@ class BoatraceML(BoatraceAnalyzer):
         std = X.std(axis=0)
         X = (X - mean) / (std + 1e-7)
         
-        return X,y,mean,std
+        return X, y, mean, std
           
     def train_multiclass_Keras(self, X, y, df):    
         # ======== データ分割 ========
         # 元のインデックスを保持
         y_onehot = to_categorical(y, num_classes=6)
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X, y_onehot, df.index, test_size=0.3, random_state=42
+            X, y_onehot, df.index, test_size=0.2, random_state=42
         )
 
         # ======== モデル構築 ========
@@ -265,23 +276,25 @@ class BoatraceML(BoatraceAnalyzer):
         # ======== データ分割 ========
         # 元のインデックスを保持
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X, y, df.index, test_size=0.3, random_state=42
+            X, y, df.index, test_size=0.2, random_state=42
         )
 
         # ======== モデル構築（LightGBM） ========
         model = lgb.LGBMClassifier(
             objective='multiclass',
             num_class=6,
-            learning_rate=0.05,
+            boosting_type='gbdt',#'gbdt
+            learning_rate=0.05,#0.05
+            n_estimators=100,#100
             max_depth=8,
-            num_leaves=31,
+            num_leaves=31,#31
             min_data_in_leaf=8,
             feature_fraction=0.8,
             class_weight='balanced',
             verbose=-1
         )
                 
-        verbose_eval=10
+        verbose_eval=50
         # モデル学習
         model.fit(X_train, y_train, eval_set=[(X_test, y_test)],
                     callbacks=[lgb.early_stopping(stopping_rounds=50,verbose=True),
@@ -345,12 +358,12 @@ class BoatraceML(BoatraceAnalyzer):
             else:
                 print(f"\n{boat_num}号艇が1着と予測したデータはありません")
         
-        lgb.plot_importance(model)
-        plt.show()
+        lgb.plot_importance(model,figsize=(6,30))
+        #plt.show()
 
         return model, X_test, y_test, result_df
         
-    def train_binaly_Keras(self, X,y,df):
+    def train_binary_Keras(self, X, y, df):
         # ======== データ分割 ========
         # 元のインデックスを保持
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
@@ -433,47 +446,35 @@ class BoatraceML(BoatraceAnalyzer):
         
         return model,X_test,y_test,result_df
 
-    def trian_binaly_LGBM(self,X,y,df):
+    def train_binary_LGBM(self, X, y, df, boat_number=1):
         # ======== データ分割 ========
         # 元のインデックスを保持
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
             X, y, df.index, test_size=0.2, random_state=42
         )
-
+        
         # ======== LightGBMモデル構築 ========
-        # データセットの作成
-        train_data = lgb.Dataset(X_train, label=y_train)
-        valid_data = lgb.Dataset(X_test, label=y_test, reference=train_data)
-
         # パラメータ設定
-        params = {
-            'objective': 'binary',
-            'metric': 'binary_logloss',
-            'boosting_type': 'gbdt',
-            'learning_rate': 0.05,
-            'num_leaves': 31,
-            'max_depth': -1,
-            'min_child_samples': 20,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8,
-            'reg_alpha': 0.1,
-            'reg_lambda': 0.1,
-            'random_state': 42,
-            'n_jobs': -1,
-            'verbosity': -1
-        }
-        verbose_eval=50
+        model = lgb.LGBMClassifier(
+            objective='binary',
+            metric='binary_logloss',
+            learning_rate=0.05,
+            n_estimators=1000,#100
+            max_depth=8,
+            num_leaves=31,
+            min_data_in_leaf=8,
+            feature_fraction=0.6,
+            verbose=-1
+        )
+
         # モデル訓練
-        model = lgb.train(
-            params,
-            train_data,
-            valid_sets=[train_data, valid_data],
-            num_boost_round=1000,
-            callbacks=[lgb.early_stopping(stopping_rounds=50,verbose=True), lgb.log_evaluation(verbose_eval)]
+        model.fit(X_train, y_train, eval_set=[(X_test, y_test)],
+            eval_metric='binary_logloss',
+            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=True),lgb.log_evaluation(50)]
         )
 
         # ======== 評価 ========
-        y_pred_prob = model.predict(X_test, num_iteration=model.best_iteration)
+        y_pred_prob = model.predict_proba(X_test)[:, 1]  # クラス1の確率を取得
         y_pred = (y_pred_prob > 0.5).astype(int)
 
         accuracy = accuracy_score(y_test, y_pred)
@@ -481,34 +482,174 @@ class BoatraceML(BoatraceAnalyzer):
         precision = precision_score(y_test, y_pred)
         recall = recall_score(y_test, y_pred)
 
-        print(f"\n1号艇モデル評価 (LightGBM):")
+        print(f"\nモデル評価 (LightGBM):")
         print(f"- 精度: {accuracy:.4f}")
         print(f"- AUC: {auc:.4f}")
         print(f"- 適合率: {precision:.4f}")
         print(f"- 再現率: {recall:.4f}")
 
         # ======== 特徴量重要度の可視化 ========
-        lgb.plot_importance(model, max_num_features=20, figsize=(10, 6))
+        lgb.plot_importance(model, figsize=(6, 30))
         plt.title('Feature Importance')
-        plt.show()
+        #plt.show()
 
         # ======== 確率出力 ========
-        original_data = original_data.loc[idx_test]
+        original_data = df.loc[idx_test]
         # DataFrame化して確認
         result_df = pd.DataFrame({
             'original_index': idx_test,
             '日付': original_data['日付'].values,
             'レース場': original_data['レース場'].values,
             'レース番号': original_data['レース番号'].values,
-            '1号艇勝利確率': y_pred_prob,
-            '正解ラベル（1=勝ち）': y_test
+            f'{boat_number}号艇確率': y_pred_prob,
+            f'{boat_number}号艇予想ラベル': y_pred,
+            f'{boat_number}号艇正解ラベル': y_test
         })
 
         return model, X_test, y_test, result_df
 
-    def calculate_return_rate_binaly(self, result_df, df_odds, threshold=0.6, bet_type='単勝', bet_amount=100):
+    def calculate_return_rate_multiclass(self, result_df, df_odds, prob_threshold=0.8, bet_type='３連単', bet_amount=100,strategy='default'):
         """
-        回収率を計算する関数
+        多クラス分類モデルを使用して舟券予測と回収率計算を行う
+        """
+            
+        # オッズデータをフィルタリング
+        odds_filtered = df_odds[df_odds['舟券種'] == bet_type].copy()
+                            
+        final_df = pd.merge(result_df, odds_filtered,
+                            on=['日付', 'レース場', 'レース番号'], how='left')
+                
+        # 各艇の確率を取得
+        boat_probs = []
+        for i in range(1, 7):
+            boat_probs.append(final_df[f'{i}号艇勝利確率'].values)
+        boat_probs = np.column_stack(boat_probs)
+                    
+        # トップ3の艇番を計算
+        top3_boats = np.argsort(boat_probs, axis=1)[:, -3:][:, ::-1] + 1
+        final_df['top1_boat'] = top3_boats[:, 0].astype(str)
+        final_df['top2_boat'] = top3_boats[:, 1].astype(str)
+        final_df['top3_boat'] = top3_boats[:, 2].astype(str)
+        final_df['top1_prob'] = np.sort(boat_probs, axis=1)[:, -1]
+        final_df['top2_prob'] = np.sort(boat_probs, axis=1)[:, -2]
+        final_df['top3_prob'] = np.sort(boat_probs, axis=1)[:, -3]
+            
+        # ベット条件
+        bets_df = final_df[final_df['top1_prob'] >= prob_threshold].copy()
+
+        if bets_df.empty:
+            print("条件を満たすレースがありませんでした")
+            return 0, pd.DataFrame()
+                
+        if bet_type == '単勝':
+            bets_df['won'] = (bets_df['top1_boat'] == bets_df['組合せ'])
+            total_bet = len(bets_df)*bet_amount
+        elif bet_type == '３連単':
+            # 3連単の的中判定
+            bets_df['won'] = False
+            bets_df['predicted_patterns'] = ""  # 予測した組み合わせを記録
+            
+            for idx, row in bets_df.iterrows():
+                # トップ3の艇番を取得
+                top1 = row['top1_boat']
+                top2 = row['top2_boat']
+                top3 = row['top3_boat']
+                
+                # 実際の結果
+                actual_3tan = row['組合せ']
+                
+                # 生成する組み合わせ
+                predicted_combinations = self.generate_3tan_combinations(top1, top2, top3, strategy)
+                
+                # 組み合わせをチェック
+                for combo in predicted_combinations:
+                    if combo == actual_3tan:
+                        bets_df.at[idx, 'won'] = True
+                        break
+                        
+                # 予測パターンを記録
+                bets_df.at[idx, 'predicted_patterns'] = ", ".join(predicted_combinations)
+                total_bet = len(bets_df)*bet_amount*len(predicted_combinations)
+        
+        # 払戻金計算（100円単位）
+        bets_df['return'] = np.where(bets_df['won'],bets_df['払戻金'] * (bet_amount / 100),0)
+        
+        total_return = bets_df['return'].sum()
+        roi = (total_return - total_bet) / total_bet if total_bet > 0 else 0
+            
+        # 結果表示
+        print(f"\nベットタイプ: {bet_type}")
+        print(f"確率閾値: {prob_threshold:.0%} 以上")
+        print(f"ベット件数: {len(bets_df)} レース/{len(result_df)}レース")
+        print(f"的中数: {bets_df['won'].sum()} 回")
+        print(f"総賭け金: {total_bet:,} 円")
+        print(f"総払戻金: {total_return:,} 円")
+        print(f"回収率: {roi:.2%}")
+        
+        # 関数の最後
+        if bets_df['won'].sum() > 0:
+            print("\n【的中レース詳細】")
+            won_races = bets_df[bets_df['won']].copy()
+            
+            # オッズと予測の詳細も表示
+            print("\n【的中した3連単パターン】")
+            for _, row in won_races.iterrows():
+                print(f"{row['日付']} {row['レース場']} {row['レース番号']}R: "
+                    f"予測 {row['predicted_patterns']} → 結果 {row['組合せ']} "
+                    f"配当 {row['払戻金']}円 "
+                    f"予測確率:{row["top1_prob"]:.2%},{row["top2_prob"]:.2%},{row["top3_prob"]:.2%}")
+        else:
+            print("\n的中したレースはありませんでした")
+
+        return roi, bets_df
+
+    def generate_3tan_combinations(self, top1, top2, top3, strategy):
+        """
+        3連単の組み合わせを戦略に基づいて生成
+        """
+        other_boats = [str(i) for i in range(1, 7) if str(i) not in [top1, top2, top3]]
+        combinations = []
+        
+        if strategy == 'default':
+            # 基本パターン: 1-2-3, 1-3-2
+            combinations.append(f"{top1}-{top2}-{top3}")
+            combinations.append(f"{top1}-{top3}-{top2}")
+        
+        elif strategy == '1-2-all':
+            combinations.append(f"{top1}-{top2}-{top3}")
+            combinations.append(f"{top1}-{top3}-{top2}")
+            # 1着固定で2着はtop2-3,後は全組み合わせ
+            for third in other_boats:
+                if third != top3:
+                    combinations.append(f"{top1}-{top2}-{third}")
+                    combinations.append(f"{top1}-{top3}-{third}")
+        
+        elif strategy == '1-1=all':
+            # 1-2着固定で3着は全組み合わせ
+            for third in [top3] + other_boats:
+                # 1-2-3, 1-2-X
+                combinations.append(f"{top1}-{top2}-{third}")
+                # 2-1-3, 2-1-X
+                combinations.append(f"{top2}-{top1}-{third}")
+        
+        elif strategy == 'box':
+            # トップ3が入っている全ての組み合わせ
+            combinations.append(f"{top1}-{top2}-{top3}")
+            combinations.append(f"{top1}-{top3}-{top2}")
+            combinations.append(f"{top2}-{top1}-{top3}")
+            combinations.append(f"{top2}-{top3}-{top1}")
+            combinations.append(f"{top3}-{top1}-{top3}")
+            combinations.append(f"{top3}-{top2}-{top1}")
+            
+        elif strategy == '2-all-2':
+            combinations.append(f"{top1}-{top2}-{top3}")
+        
+        # 重複を削除
+        return list(set(combinations))
+
+    def calculate_return_rate_binaly(self, result_df, df_odds, threshold=0.7, bet_type='単勝', bet_amount=100,boat_number=1):
+        """
+        バイナリモデルから回収率を計算する関数
         
         Parameters:
         ----------
@@ -524,113 +665,159 @@ class BoatraceML(BoatraceAnalyzer):
             賭ける舟券の種類（'単勝', '複勝'など）
         bet_amount : int
             1レースあたりの賭け金
-        """        
+        """
+        
         # オッズデータと結合（単勝のみをフィルタリング）
         odds_filtered = df_odds[df_odds['舟券種'] == bet_type]
         
-        # 1号艇のオッズのみを取得（単勝の場合）
+        # 各号艇のオッズのみを取得（単勝の場合）
         if bet_type == '単勝':
-            odds_filtered = odds_filtered[odds_filtered['組合せ'] == '1']
+            odds_filtered = odds_filtered[odds_filtered['組合せ'] == f'{boat_number}']
         elif bet_type == '複勝':
-            odds_filtered = odds_filtered[odds_filtered['組合せ'] == '1']
-        # 他の賭け方にも対応可能
+            odds_filtered = odds_filtered[odds_filtered['組合せ'] == f'{boat_number}']
         
         merged_df = pd.merge(result_df,odds_filtered,
             on=['日付', 'レース場', 'レース番号'],how='left')
         
         # 閾値以上の予測のみを選択
-        high_conf_bets = merged_df[merged_df['1号艇勝利確率'] >= threshold]
+        high_conf_bets = merged_df[merged_df[f'{boat_number}号艇確率'] >= threshold]
         
         # 回収率計算
         total_bet = len(high_conf_bets) * bet_amount
-        total_return = high_conf_bets[high_conf_bets['正解ラベル（1=勝ち）'] == 1]['払戻金'].sum()
+        total_return = high_conf_bets[high_conf_bets[f'{boat_number}号艇正解ラベル'] == 1]['払戻金'].sum()*(bet_amount/100)
         roi = (total_return - total_bet) / total_bet if total_bet > 0 else 0
         
         print(f"\nベットタイプ: {bet_type}")
         print(f"閾値: {threshold:.0%} 以上")
         print(f"ベット件数: {len(high_conf_bets)} レース/{len(merged_df)}レース")
+        print(f"的中数: {len(high_conf_bets[high_conf_bets[f'{boat_number}号艇正解ラベル'] == 1])} 回")
         print(f"総賭け金: {total_bet:,} 円")
         print(f"総払戻金: {total_return:,} 円")
         print(f"回収率: {roi:.2%}")
         
         return roi, high_conf_bets
 
-    def calculate_return_rate_multiclass(self, race_df, result_df, df_odds, prob_threshold=0.5, margin_threshold=0.1, bet_type='単勝',bet_amount=100):
+    def calculate_return_rate_multibinaly(self, results_df, df_odds, threshold=0.7, bet_amount=100):
         """
-        多クラス分類モデルを使用して舟券予測と回収率計算を行う
-        確率に応じてベット金額を変更:
-        - 0.7 <= prob < 0.8 → 100円
-        - 0.8 <= prob < 0.9 → 200円
-        - prob >= 0.9 → 300円
+        マルチクラスモデルとバイナリモデルから回収率を計算する関数
         """
-        # 元のデータと結果を結合
-        merged_df = pd.merge(result_df, race_df[['1着艇', '2着艇', '3着艇']].reset_index(),
-                            left_on='original_index', right_on='index', how='left')
-            
-        # オッズデータをフィルタリング
-        odds_filtered = df_odds[df_odds['舟券種'] == bet_type].copy()
-                            
-        final_df = pd.merge(merged_df, odds_filtered,
-                            on=['日付', 'レース場', 'レース番号'], how='left')
-                
-        # 各艇の確率を取得
-        boat_probs = []
+        # オッズデータと結合（単勝のみをフィルタリング）
+        odds_filtered = df_odds[df_odds['舟券種'] == '３連単']              
+        merged_df = pd.merge(results_df,odds_filtered,on=['日付', 'レース場', 'レース番号'],how='left')
+        
+        # 各艇の1着確率を取得
+        boat_probs_first_place = []
+        boat_probs_top_three = []
         for i in range(1, 7):
-            boat_probs.append(final_df[f'{i}号艇勝利確率'].values)
-        boat_probs = np.column_stack(boat_probs)
+            boat_probs_first_place.append(merged_df[f'{i}号艇勝利確率'].values)
+            boat_probs_top_three.append(merged_df[f'{i}号艇確率'].values)
+        boat_probs_first_place = np.column_stack(boat_probs_first_place)
+        boat_probs_top_three = np.column_stack(boat_probs_top_three)
+        
+        # 1. top_boat (1着) を取得 (0-based indexと仮定)
+        top_boats = np.argmax(boat_probs_first_place, axis=1)
+
+        # 2. 各レースについて、1着と2着を予想
+        second_boats = []
+        third_boats = []
+        forth_boats = []
+
+        for i in range(len(top_boats)):
+            # 現在のレースのtop_three確率を取得
+            race_probs = boat_probs_top_three[i].copy()
             
-        # トップの艇番と確率、2番手の確率を計算
-        final_df['top_boat'] = np.argmax(boat_probs, axis=1) + 1
-        final_df['top_boat'] = final_df['top_boat'].astype(str)
-        final_df['top_prob'] = np.max(boat_probs, axis=1)
-        final_df['second_prob'] = np.sort(boat_probs, axis=1)[:, -2]
-        final_df['prob_diff'] = final_df['top_prob'] - final_df['second_prob']
-                    
-        # 賭ける条件を満たすレースをフィルタリング
-        condition = (
-            (final_df['top_prob'] >= prob_threshold) & 
-            (final_df['prob_diff'] >= margin_threshold))
-        bets_df = final_df[condition].copy()
+            # 1. 1着艇を取得し、その確率を0にマスク
+            top_boat = top_boats[i]
+            race_probs[top_boat] = 0
+            
+            # 2. 2着艇を取得 (残りの中で最大確率)
+            second_boat = np.argmax(race_probs)
+            race_probs[second_boat] = 0  # 2着艇もマスク
+            
+            # 3. 3着艇を取得 (さらに残りの中で最大確率)
+            third_boat = np.argmax(race_probs)
+            race_probs[third_boat] = 0
+            
+            # 4. 4着艇を取得 (さらに残りの中で最大確率)
+            forth_boat = np.argmax(race_probs)
+            race_probs[forth_boat] = 0
+            
+            second_boats.append(second_boat)
+            third_boats.append(third_boat)
+            forth_boats.append(forth_boat)
+
+        # 結果をDataFrameに追加 (号艇番号は1-basedにする場合 +1)
+        merged_df['top1_boat'] = top_boats + 1  # 1-6で表現
+        merged_df['top2_boat'] = np.array(second_boats) + 1
+        merged_df['top3_boat'] = np.array(third_boats) + 1
+        merged_df['top1_prob'] = np.sort(boat_probs_first_place, axis=1)[:, -1]
+        
+        # ベット条件
+        bets_df = merged_df[merged_df['top1_prob'] >= threshold].copy()
 
         if bets_df.empty:
             print("条件を満たすレースがありませんでした")
             return 0, pd.DataFrame()
-                
-        # 的中判定
-        bets_df['1着艇'] = bets_df['1着艇'].astype(str)
-        bets_df['2着艇'] = bets_df['2着艇'].astype(str)
-        bets_df['3着艇'] = bets_df['3着艇'].astype(str)
-
-        if bet_type == '単勝':
-            bets_df['won'] = (bets_df['top_boat'] == bets_df['1着艇'])
-        elif bet_type == '複勝':
-            bets_df['won'] = (
-                (bets_df['top_boat'] == bets_df['1着艇']) | 
-                (bets_df['top_boat'] == bets_df['2着艇']) | 
-                (bets_df['top_boat'] == bets_df['3着艇']))
-
-        # 一律100円ベット
-        bets_df['bet_amount'] = bet_amount
+        
+        # 3連単の的中判定
+        bets_df['won'] = False
+        bets_df['predicted_patterns'] = ""  # 予測した組み合わせを記録
+        
+        for idx, row in bets_df.iterrows():
+            # トップ3の艇番を取得
+            top1 = row['top1_boat']
+            top2 = row['top2_boat']
+            top3 = row['top3_boat']
             
-        # 回収率計算
-        total_bet = bets_df['bet_amount'].sum()
-        total_return = bets_df[bets_df['won']]['払戻金'].sum()*(bet_amount/100)
+            # 実際の結果
+            actual_3tan = row['組合せ']
+            
+            # 生成する組み合わせ
+            predicted_combinations = self.generate_3tan_combinations(top1, top2, top3, strategy='box')
+            
+            # 組み合わせをチェック
+            for combo in predicted_combinations:
+                if combo == actual_3tan:
+                    bets_df.at[idx, 'won'] = True
+                    break
+                    
+            # 予測パターンを記録
+            bets_df.at[idx, 'predicted_patterns'] = ", ".join(predicted_combinations)
+            total_bet = len(bets_df)*bet_amount*len(predicted_combinations)
+            
+        # 払戻金計算（100円単位）
+        bets_df['return'] = np.where(bets_df['won'],bets_df['払戻金'] * (bet_amount / 100),0)
+        
+        total_return = bets_df['return'].sum()
         roi = (total_return - total_bet) / total_bet if total_bet > 0 else 0
-            
-        # 結果表示
-        print(f"\nベットタイプ: {bet_type}")
-        print(f"確率閾値: {prob_threshold:.0%} 以上")
-        print(f"トップ確率差閾値: {margin_threshold:.0%} 以上")
+        
+        print("\nベットタイプ: ３連単")
+        print(f"確率閾値: {threshold:.0%} 以上")
         print(f"ベット件数: {len(bets_df)} レース/{len(result_df)}レース")
         print(f"的中数: {bets_df['won'].sum()} 回")
         print(f"総賭け金: {total_bet:,} 円")
         print(f"総払戻金: {total_return:,} 円")
         print(f"回収率: {roi:.2%}")
+        
+        # 関数の最後
+        if bets_df['won'].sum() > 0:
+            print("\n【的中レース詳細】")
+            won_races = bets_df[bets_df['won']].copy()
             
-        return roi,bets_df
+            # オッズと予測の詳細も表示
+            print("\n【的中した3連単パターン】")
+            for _, row in won_races.iterrows():
+                print(f"{row['日付']} {row['レース場']} {row['レース番号']}R: "
+                    f"予測 {row['predicted_patterns']} → 結果 {row['組合せ']} "
+                    f"配当 {row['払戻金']}円 "
+                    f"予測確率:{row["top1_prob"]:.2%}")
+        else:
+            print("\n的中したレースはありませんでした")
+        
+        return roi, bets_df
 
     def compiling_and_preprocess_and_train_lane_data(self):
-        """1見すると、正答率85％あるが、1号艇を1それ以外は0と予測するだけで達成できるから意味なし"""
+        """1見すると、正答率85%あるが、1号艇を1それ以外は0と予測するだけで達成できるから意味なし"""
         merged_csv_folder = os.path.join(self.folder, "merged_csv")
         all_files = [os.path.join(merged_csv_folder, f) for f in os.listdir(merged_csv_folder) if f.endswith('.csv')]
 
@@ -751,7 +938,7 @@ class BoatraceML(BoatraceAnalyzer):
         plt.legend()
         plt.show()        
 
-if __name__=="__main__":
+if __name__ == "__main__":
     BoatraceML = BoatraceML(folder = "C:\\Users\\msy-t\\boatrace-ai\\data")
     # レースデータとオッズデータのコンパイル
     #df_race = BoatraceML.compiling_race_data()
@@ -761,18 +948,22 @@ if __name__=="__main__":
     df_race = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df_race.csv", encoding='shift-jis')
     df_odds = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df_odds.csv", encoding='shift-jis')
     
+    # 回収率計算
+    #roi = BoatraceML.calculate_return_rate_multiclass(result_df=result_df,df_odds=df_odds,prob_threshold=0.7 ,bet_type='３連単',bet_amount=100,strategy='default')
+    
+    
     # モデル訓練（マルチクラス）
     X,y,mean,std = BoatraceML.preprocess_multiclass(df_race)
-    model,X_test,y_test,result_df = BoatraceML.train_multiclass_LGBM(X,y,df_race)
+    model,X_test,y_test,results_df = BoatraceML.train_multiclass_LGBM(X,y,df_race)
     
-    # 単勝予測と回収率計算
-    roi = BoatraceML.calculate_return_rate_multiclass(race_df=df_race,result_df=result_df,df_odds=df_odds,prob_threshold=0.7,margin_threshold=0.0,bet_type='単勝',bet_amount=100)
-    
-    # モデル訓練（バイナリクラス）
-    #X,y,mean,std = BoatraceML.preprocess_binaly(df_race)
-    #model,X_test,y_test,result_df = BoatraceML.train_binaly_Keras(X,y,df_race)
+    # バイナリ分類モデルの訓練（1-6号艇）
+    for i in range(1, 7):
+        X, y, mean, std = BoatraceML.preprocess_binary(df_race, boat_number=i, is_place='third')
+        model, X_test, y_test, result_df = BoatraceML.train_binary_LGBM(X, y, df_race, boat_number=i)
         
-    # 回収率計算（単勝の場合）
-    #roi, bet_results = BoatraceML.calculate_return_rate_1_win(result_df=result_df,df_odds=df_odds,threshold=0.70,bet_type='単勝',bet_amount=100)
-    # 複勝の回収率計算（閾値は調整が必要）
-    #roi_fukusho, fukusho_bets = BoatraceML.calculate_return_rate_1_win(result_df=result_df,df_odds=df_odds,threshold=0.55, bet_type='複勝',bet_amount=100)
+        results_df = pd.merge(results_df, result_df, on=['original_index', '日付', 'レース場', 'レース番号',f'{i}号艇予想ラベル',f'{i}号艇正解ラベル'], how='outer')
+    print(results_df)
+
+    
+    # 回収率計算
+    roi, bet_results = BoatraceML.calculate_return_rate_multibinaly(results_df=results_df,df_odds=df_odds,threshold=0.7,bet_amount=100)
