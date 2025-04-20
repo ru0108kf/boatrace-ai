@@ -1271,7 +1271,7 @@ if __name__ == "__main__":
     
     # テスト
     boatrace_ml.run_pipeline_ellipsis()
-    """
+    
     # モデルの読み込み
     model_one = joblib.load('saved_models/model_one.joblib')
     model_defeat_one = joblib.load('saved_models/model_defeat_one.joblib')
@@ -1286,6 +1286,6 @@ if __name__ == "__main__":
     Exhibition_time = {1: numbers[0],2: numbers[1],3: numbers[2],4: numbers[3],5: numbers[4],6: numbers[5]}
     
     boatrace_ml.run_pipeline_jissen(model_one,model_defeat_one,model_twos,mean,std,target_date="2024-04-20", place='戸田', race_no=6, Exhibition_time=Exhibition_time)
-    """
+    
     
     
