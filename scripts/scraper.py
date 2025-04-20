@@ -587,22 +587,11 @@ if __name__ == "__main__":
     # ==================変更してもOK==================
     scraper = BoatraceScraper(folder, BorK="K")
             
-    today_date = "2025-04-10"
-    today_datetime = datetime.strptime(today_date, '%Y-%m-%d')
-    yesterday = (today_datetime - timedelta(days=1)).strftime('%Y-%m-%d')
+    start_date = "2022-04-01"
+    end_date = "2022-12-31"
     # ===============成績表スクレイピング===============
     scraperK = BoatraceScraper(folder, BorK="K")
-    current_date = scraperK.find_current_dates(date=yesterday,BorK="K")
-    if current_date!=None:
-        if current_date==today_date:
-            scraperK.scrape_and_process_data(start_date=yesterday,end_date=yesterday)
-        else:
-            scraperK.scrape_and_process_data(start_date=current_date,end_date=yesterday)
+    scraperK.scrape_and_process_data(start_date,end_date)
     # ===============番組表スクレイピング===============
     scraperB = BoatraceScraper(folder, BorK="B")
-    current_date = scraperB.find_current_dates(date=today_date,BorK="B")
-    if current_date!=None:
-        if current_date==today_date:
-            scraperB.scrape_and_process_data(start_date=yesterday,end_date=yesterday)
-        else:
-            scraperB.scrape_and_process_data(start_date=current_date,end_date=today_date)
+    scraperB.scrape_and_process_data(start_date,end_date)

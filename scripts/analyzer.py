@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 
+#from scripts.base import BoatraceBase
 from base import BoatraceBase
 
 class BoatraceAnalyzer(BoatraceBase):
@@ -326,6 +327,8 @@ class BoatraceAnalyzer(BoatraceBase):
         for name in list:
             df_K = pd.read_csv(self.folder+f"\\K_csv\\K{name}.csv", encoding='shift-jis')
             df_B = pd.read_csv(self.folder+f"\\B_csv\\B{name}.csv", encoding='shift-jis')
+            
+            date = "20" + name[:2] + "-" + name[2:4] + "-" + name[4:6]
 
             # 結合と重複カラムを削除
             common_columns = ['レース場', 'レース番号', '登録番号']
@@ -334,7 +337,9 @@ class BoatraceAnalyzer(BoatraceBase):
             df_K = df_K.drop(columns=overlapping_columns)
             merged_df = pd.merge(df_B, df_K, on=common_columns, how='inner')
             
-            # 3カ月前の日付を取得
+            merged_df['日付'] = date
+            
+            # 1年前の日付を取得
             three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
             # 1日前の日付を取得
             one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -352,19 +357,57 @@ class BoatraceAnalyzer(BoatraceBase):
             # 逃し率
             merged_df['逃し率'] = base_df['逃し'] / base_df['出走数']
             
+            # 日付を一番左のカラムに移動
+            cols = merged_df.columns.tolist()
+            cols = ['日付'] + [col for col in cols if col != '日付']
+            merged_df = merged_df[cols]
+            
             merged_df.to_csv(self.folder+f"\\merged_csv\\{name}.csv", index=False, encoding='shift-jis')      
- 
+
+    def format_race_data(self,target_date="2024-04-01"):
+        name = self.generate_date_list(start_date=target_date, end_date=target_date)[0]
+        df_B = pd.read_csv(self.folder+f"\\B_csv\\B{name}.csv", encoding='shift-jis')
+        
+        date = "20" + name[:2] + "-" + name[2:4] + "-" + name[4:6]
+        
+        df_B['日付'] = date
+        
+        # 1年前の日付を取得
+        three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
+        # 1日前の日付を取得
+        one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # 基本データの取得
+        base_df = self.base_data(start_date=three_months_ago, end_date=one_day_ago, venue="全国") 
+        
+        # データを結合する
+        merged_df = pd.merge(df_B, base_df[['登録番号', '艇番', '平均ST','全体平均ST']], on=['登録番号', '艇番'], how='left')
+        
+        # 1着率を計算
+        merged_df['1着率'] = base_df['勝利回数'] / base_df['出走数']
+        # 2-3着率を計算
+        merged_df['2-3着率'] = (base_df['2着回数']+base_df['3着回数']) / base_df['出走数']
+        # 逃し率
+        merged_df['逃し率'] = base_df['逃し'] / base_df['出走数']
+        
+        # 日付を一番左のカラムに移動
+        cols = merged_df.columns.tolist()
+        cols = ['日付'] + [col for col in cols if col != '日付']
+        merged_df = merged_df[cols]
+        
+        return merged_df
 
 if __name__ == "__main__":
     # ==================変更すべき欄==================
     folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
     # ==================変更してもOK==================
     # 集計期間
-    start_date = "2024-04-01"
+    start_date = "2023-04-01"
     end_date = "2025-03-31"
     
     # ===============================================
     analyzer = BoatraceAnalyzer(folder)
+    
     result = analyzer.base_data(start_date=start_date, end_date=end_date, venue="全国")
     result.to_csv(f"{folder}\\agg_results\\national_agg.csv", index=False, encoding="shift_jis")
     

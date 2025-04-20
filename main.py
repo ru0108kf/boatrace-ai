@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timedelta
+from scripts.base import BoatraceBase
 from scripts.scraper import BoatraceScraper
 from scripts.scraper import BoatraceLatestDataScraper
 from scripts.analyzer import BoatraceAnalyzer
@@ -7,9 +8,9 @@ from scripts.analyzer import BoatraceAnalyzer
 # ===============変更しないと駄目なところ===============
 folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
 # =====================変更してOK======================
-today_date = "2025-03-31"#datetime.now().strftime('%Y-%m-%d')
-race_no = 5
-venue = "住之江"
+today_date = "2025-04-20"#datetime.now().strftime('%Y-%m-%d')
+race_no = 1
+venue = "戸田"
 # ====================================================
 
 # ===================以下は変更不要====================
