@@ -132,7 +132,7 @@ class DataCompiler(BoatraceAnalyzer):
         race_data = df[(df['日付'] == target_date) & 
                     (df['レース場'] == place) & 
                     (df['レース番号'] == race_no)]
-        
+                
         # 6艇そろってない場合は空のDataFrameを返す
         if len(race_data) != 6:
             return pd.DataFrame()
@@ -256,12 +256,21 @@ class DataCompiler(BoatraceAnalyzer):
         
         return X, y, remaining_boats, df_winner
 
-    def preprocess_all(self,df,mean,std):
+    def preprocess_all(self,df,mean,std,columns):
         # ======== 特徴量前処理 ========
         df = df.drop(columns=['日付', 'レース番号'])
 
         categorical_cols = [col for col in df.columns if df[col].dtype == 'object']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+        
+        # 新しいDataFrameに存在しない列を0で埋めて追加する
+        missing_columns = [col for col in columns if col not in df.columns]
+        df_missing = pd.DataFrame(0, index=df.index, columns=missing_columns)
+
+        # 一括で列を追加
+        df = pd.concat([df, df_missing], axis=1)
+
+        df = df[columns]  # 並べ替え
 
         X = df.fillna(0).astype('float32')
 
@@ -471,7 +480,7 @@ class ModelTrainer:
             objective='binary',
             class_weight=class_weights,
             metric='binary_logloss',
-            learning_rate=0.01,
+            learning_rate=0.05,
             n_estimators=1000,#100
             max_depth=-1,
             num_leaves=31,
@@ -483,12 +492,12 @@ class ModelTrainer:
         # モデル訓練
         model.fit(X_train, y_train, eval_set=[(X_test, y_test)],
             eval_metric='binary_logloss',
-            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=True),lgb.log_evaluation(50)]
+            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=True),lgb.log_evaluation(100)]
         )
 
         # ======== 評価 ========
         y_pred_prob = model.predict_proba(X_test)[:, 1]  # クラス1の確率を取得
-        y_pred = (y_pred_prob > 0.4).astype(int)
+        y_pred = (y_pred_prob > 0.5).astype(int)
 
         accuracy = accuracy_score(y_test, y_pred)
         auc = roc_auc_score(y_test, y_pred_prob)
@@ -502,8 +511,8 @@ class ModelTrainer:
         print(f"- 再現率: {recall:.4f}")
 
         # ======== 特徴量重要度の可視化 ========
-        #lgb.plot_importance(model, figsize=(6, 12),max_num_features=20)
-        #plt.show()
+        lgb.plot_importance(model, figsize=(20, 12),max_num_features=20)
+        plt.show()
         
         # ======== 予測分布の可視化 ========
         print("\n=== 予測結果の詳細分析 ===")
@@ -605,38 +614,90 @@ class ModelTrainer:
         
         return model,X_test,y_test,result_df
 
-    def train_multiclass_lgbm_exclusion(self, X, y, df, exclude_nums=[1]):
-        """
-        指定した2艇を除外して多クラス分類モデルを訓練
-        Args:
-            exclude_nums: 除外する艇番号のリスト（例: [1, 2] → 1号艇と2号艇を除外）
-        """
-        # 指定号艇を除外
-        mask = ~np.isin(y, exclude_nums)  # 除外艇以外を選択
+    def train_multiclass_LGBM_exclusion_one(self, X, y, df):
+        # 1号艇を除外する場合
+        mask = (y != 1)  # 2-6号艇のみ
         X_filtered = X[mask]
         y_filtered = y[mask]
         df_filtered = df.iloc[mask]
         
-        # 除外後の艇番号リスト（例: exclude_nums=[1,2] → [3,4,5,6]）
-        candidate_boats = sorted(list(set(y_filtered)))
-        num_classes = len(candidate_boats)
-        
-        # 艇番号を 0,1,2,... にマッピング
-        label_mapping = {boat: idx for idx, boat in enumerate(candidate_boats)}
-        y_mapped = np.array([label_mapping[boat] for boat in y_filtered])
-        
-        # データ分割
+        # データ分割（元のコードと同様）
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X_filtered, y_mapped, df_filtered.index, test_size=0.2, random_state=42
+            X_filtered, y_filtered, df_filtered.index, test_size=0.2, random_state=42
         )
-        
         # ======== モデル構築（LightGBM） ========
         model = lgb.LGBMClassifier(
             objective='multiclass',
-            num_class=num_classes,  # 動的に設定
+            num_class=5,
+            boosting_type='gbdt',#'gbdt
+            learning_rate=0.05,#0.05
+            n_estimators=1000,#100
+            max_depth=8,
+            num_leaves=31,#31
+            min_data_in_leaf=8,
+            feature_fraction=0.8, 
+            verbose=-1
+        )
+        verbose_eval=100
+        # 学習と予測（元のコードと同様）
+        model.fit(X_train, y_train-2, eval_set=[(X_test, y_test-2)],
+                    callbacks=[lgb.early_stopping(stopping_rounds=50,verbose=True),
+                            lgb.log_evaluation(verbose_eval)]) 
+               
+        # ======== 特徴量重要度の可視化 ========
+        lgb.plot_importance(model,figsize=(20, 12),max_num_features=20)
+        plt.show()               
+
+        # ======== 評価 ========
+        y_pred = model.predict(X_test) + 2
+        acc = accuracy_score(y_test, y_pred)
+        print(f"LightGBMモデルの多クラス分類精度: {acc:.4f}")
+        
+        print("\n=== 予測結果の詳細分析 ===")
+        print("混同行列:")
+        print(confusion_matrix(y_test, y_pred))
+        print("\nクラスごとの精度:")
+        print(classification_report(y_test, y_pred))
+        
+        return model
+
+    def train_multiclass_lgbm_target_1st(self, X, y, df, target_1st_num=1):
+        """
+        1着が指定した艇のデータのみを使って多クラス分類モデルを訓練
+        （yには2着の艇番号が入っている前提）
+
+        Args:
+            target_1st_num: 1着として抽出したい艇番号（int型。例: 1 → 1号艇が1着のレースのみ使用）
+        """
+        # 1着情報を取得（dfから1着の艇番号が入っている列を指定）
+        first_place = df['1着艇'].values
+
+        # 1着が指定艇番号のもののみマスク
+        mask = (first_place == target_1st_num)
+        X_filtered = X[mask]
+        y_filtered = y[mask]  # このyは2着の艇番号
+        df_filtered = df.iloc[mask]
+
+        # 2着候補の艇番号リスト（1着艇は除く）
+        candidate_boats = sorted([x for x in set(y_filtered) if x != target_1st_num])
+        num_classes = len(candidate_boats)
+
+        # 艇番号を 0,1,2,... にマッピング
+        label_mapping = {boat: idx for idx, boat in enumerate(candidate_boats)}
+        y_mapped = np.array([label_mapping[boat] for boat in y_filtered])
+
+        # 以降は元の処理と同じ（データ分割・モデル訓練・評価）
+        # ================================================
+        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
+            X_filtered, y_mapped, df_filtered.index, test_size=0.2, random_state=42
+        )
+
+        model = lgb.LGBMClassifier(
+            objective='multiclass',
+            num_class=num_classes,
             boosting_type='gbdt',
             learning_rate=0.05,
-            n_estimators=1000,
+            n_estimators=10000,
             max_depth=8,
             num_leaves=31,
             min_data_in_leaf=8,
@@ -644,37 +705,32 @@ class ModelTrainer:
             verbose=-1,
             class_weight='balanced'
         )
-        
-        # 学習
+
         model.fit(
             X_train, y_train,
             eval_set=[(X_test, y_test)],
             callbacks=[
                 lgb.early_stopping(stopping_rounds=50, verbose=True),
-                lgb.log_evaluation(50)
+                lgb.log_evaluation(100)
             ]
         )
+
+        # ======== 特徴量重要度の可視化 ========
+        lgb.plot_importance(model,figsize=(20, 12),max_num_features=20)
+        plt.show()
         
-        # ======== 評価 ========
+        # 評価（元の艇番号に戻して表示）
         y_pred_mapped = model.predict(X_test)
-        
-        # 予測結果を元の艇番号に逆変換
         inverse_mapping = {idx: boat for idx, boat in enumerate(candidate_boats)}
         y_pred = np.array([inverse_mapping[idx] for idx in y_pred_mapped])
         y_test_original = np.array([inverse_mapping[idx] for idx in y_test])
-        
-        # 精度評価
-        acc = accuracy_score(y_test_original, y_pred)
-        print(f"LightGBMモデルの多クラス分類精度: {acc:.4f}")
-        print(f"除外艇: {exclude_nums}, 有効艇: {candidate_boats}")
-        
-        print("\n=== 予測結果の詳細分析 ===")
-        print("混同行列:")
-        print(confusion_matrix(y_test_original, y_pred))
-        print("\nクラスごとの精度:")
-        print(classification_report(y_test_original, y_pred))
-        
+
+        print(f"1着が {target_1st_num} 号艇のレースのみ使用")
+        print(f"2着候補: {candidate_boats}")
+        print(f"データ数: {len(X_filtered)}")
+        print(f"分類精度: {accuracy_score(y_test_original, y_pred):.4f}")
         return model
+
 
 class BettingStrategyEvaluator:
     """ベッティング戦略の評価を担当するクラス"""
@@ -897,7 +953,9 @@ class BettingStrategyEvaluator:
         for _, row in bets_df.iterrows():
             print(f"{row['日付']} {row['レース場']} {row['レース番号']}R: "
                     f"予測 {row['predicted_patterns']}" f" 戦術 {row['strategy_used']} "
-                    f"予測確率:{row[f'{int(row['1着艇予想'])}号艇勝利確率']:.2%}")
+                    f"予測確率:{row[f'1号艇勝利確率']:.2%} {row[f'2号艇勝利確率']:.2%} {row[f'3号艇勝利確率']:.2%} {row[f'4号艇勝利確率']:.2%} {row[f'5号艇勝利確率']:.2%} {row[f'6号艇勝利確率']:.2%} -"
+                    f"{row[f"{top1}号艇が1着のとき{top1to2}号艇の2着確率"]:.2%}"
+                    )
         
         return bets_df
         
@@ -944,8 +1002,10 @@ class BettingStrategyEvaluator:
         
         # 戦略決定ロジック
         if p1 > 0.7:
-            return "default"  # 1着が圧倒的 → 最小限
-        
+            if p2 > 0.3:
+                return "minimal"  # 1着が圧倒的 → 最小限
+            else:
+                return "default"
         elif p1 > 0.5:
             if dominance_ratio > 3.0:
                 if top3_concentration > 0.7:
@@ -964,7 +1024,7 @@ class BettingStrategyEvaluator:
         elif entropy > 1.5:  # 確率分布が平坦
             return "longshot"  # 波乱予想
         else:
-            return "conservative"  # 標準戦略
+            return "default"  # 標準戦略
 
     def _generate_optimized_combinations(self, top1, top2, top3, top4, top5, top6, strategy):
         """拡張戦略パターン"""
@@ -1036,7 +1096,7 @@ class BoatraceML:
         df_race = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df_race.csv", encoding='shift-jis')
         
         # データ分割
-        split = -3000
+        split = -4186
         train_df = df_race[:split]
         test_df = df_race[split:].copy()
         
@@ -1044,10 +1104,13 @@ class BoatraceML:
         # 1号艇は勝てるか？
         X, y, mean, std = self.data_compiler.preprocess_for_binary(df_race, boat_number=1, is_place='Win')
         model_one = self.model_trainer.train_binary_lgbm(X[:split], y[:split], train_df,boat_number=1, is_place='Win')
+        
+        # 学習時に特徴量の列順を保存
+        columns = X.columns.tolist()  # 学習に使用した特徴量の順番
 
         # 1号艇が負けたとき勝つのは？
         X, y, _, _ = self.data_compiler.preprocess_for_multiclass(df_race, top_num=1)
-        model_defeat_one = self.model_trainer.train_multiclass_lgbm_exclusion(X[:split], y[:split], train_df, exclude_nums=[1])
+        model_defeat_one = self.model_trainer.train_multiclass_LGBM_exclusion_one(X[:split], y[:split], train_df)
         
         # ベットタイム
         p1 = model_one.predict_proba(X[split:])[:, 1]  # 1号艇の1着確率
@@ -1069,7 +1132,7 @@ class BoatraceML:
         model_twos = {}
         for num in range(1, 7):
             X, y, _, _ = self.data_compiler.preprocess_for_multiclass(df_race, top_num=2)
-            model_two = self.model_trainer.train_multiclass_lgbm_exclusion(X[:split], y[:split], train_df, exclude_nums=[num])
+            model_two = self.model_trainer.train_multiclass_lgbm_target_1st(X[:split], y[:split], train_df, target_1st_num=num)
             probs_two = model_two.predict_proba(X[split:])
             
             candidate_boats = [i for i in range(1, 7) if i != num]
@@ -1080,7 +1143,7 @@ class BoatraceML:
                 test_df[f'{num}号艇が1着のとき{boat_num}号艇の2着確率'] = probs_two[:, idx]
             model_twos[num] = model_two
                 
-        return test_df,model_one,model_defeat_one,model_twos,mean,std
+        return test_df,model_one,model_defeat_one,model_twos,mean,std,columns
         
     def run_pipeline_6class(self):
         df_race = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df_race.csv", encoding='shift-jis')
@@ -1093,15 +1156,15 @@ class BoatraceML:
         df_odds = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df_odds.csv", encoding='shift-jis')
         test_df = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\test_df.csv", encoding="shift_jis")
         # ベット
-        threshold={1: 0.7,2: 0.6,3: 0.6,4: 0.5,5: 0.3,6: 0.3}
-        self.evaluator.Win_calculate_return_rate(test_df, df_odds, threshold, bet_amount=100)
+        threshold={1: 0.7,2: 0.6,3: 0.5,4: 0.5,5: 0.3,6: 0.2}
+        #self.evaluator.Win_calculate_return_rate(test_df, df_odds, threshold, bet_amount=100)
         self.evaluator.Trifecta_calculate_return_rate_ex(test_df, df_odds,threshold, bet_amount=100)
 
-    def run_pipeline_jissen(self,model_one,model_defeat_one,model_twos,mean,std,target_date="2024-04-01", place='大村', race_no=1, Exhibition_time={1:7.00, 2:7.00, 3:7.00, 4:7.00, 5:7.00, 6:7.00}):
+    def run_pipeline_jissen(self,model_one,model_defeat_one,model_twos,mean,std,columns,target_date="2024-04-01", place='大村', race_no=1, Exhibition_time={1:7.00, 2:7.00, 3:7.00, 4:7.00, 5:7.00, 6:7.00}):
         df = self.data_compiler.compile_race_data_B(target_date, place, race_no, Exhibition_time)
         #df.to_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df.csv", index=False, encoding="shift_jis")
         #df = pd.read_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\df.csv", encoding="shift_jis")
-        X = self.data_compiler.preprocess_all(df,mean,std)
+        X = self.data_compiler.preprocess_all(df,mean,std,columns)
         
         # ベットタイム
         p1 = model_one.predict_proba(X)[:, 1]  # 1号艇の1着確率
@@ -1259,18 +1322,18 @@ if __name__ == "__main__":
     folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
     # ==================変更してもOK==================
     boatrace_ml = BoatraceML(folder)
-    test_df,model_one,model_defeat_one,model_twos,mean,std = boatrace_ml.run_pipeline()    
+    #test_df,model_one,model_defeat_one,model_twos,mean,std,columns = boatrace_ml.run_pipeline()    
     
     # モデルを保存する
-    test_df.to_csv("C:\\Users\\msy-t\\boatrace-ai\\data\\agg_results\\test_df.csv", index=False, encoding="shift_jis")
+    #test_df.to_csv(folder+"\\agg_results\\test_df.csv", index=False, encoding="shift_jis")
     #os.makedirs('saved_models', exist_ok=True)
     #joblib.dump(model_one, 'saved_models/model_one.joblib')
     #joblib.dump(model_defeat_one,'saved_models/model_defeat_one.joblib')
     #joblib.dump(model_twos, 'saved_models/model_twos_dict.pkl')
     #joblib.dump({'mean': mean, 'std': std}, 'saved_models/scaling_params.pkl')
-    
+    #joblib.dump(columns, 'saved_models/feature_columns.pkl')  # 保存
     # テスト
-    boatrace_ml.run_pipeline_ellipsis()
+    #boatrace_ml.run_pipeline_ellipsis()
     
     # モデルの読み込み
     model_one = joblib.load('saved_models/model_one.joblib')
@@ -1279,13 +1342,11 @@ if __name__ == "__main__":
     scaling_params = joblib.load('saved_models/scaling_params.pkl')
     mean = scaling_params['mean']
     std = scaling_params['std']
+    columns = joblib.load('saved_models/feature_columns.pkl')
     
     # 入力を受け取る
     input_str = input("展示タイムを入力(スペースで区切る): ")
     numbers = list(map(float, input_str.split()))
     Exhibition_time = {1: numbers[0],2: numbers[1],3: numbers[2],4: numbers[3],5: numbers[4],6: numbers[5]}
     
-    boatrace_ml.run_pipeline_jissen(model_one,model_defeat_one,model_twos,mean,std,target_date="2024-04-20", place='戸田', race_no=6, Exhibition_time=Exhibition_time)
-    
-    
-    
+    boatrace_ml.run_pipeline_jissen(model_one,model_defeat_one,model_twos,mean,std,columns,target_date="2025-03-26", place='常滑', race_no=5, Exhibition_time=Exhibition_time)

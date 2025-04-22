@@ -152,7 +152,7 @@ class BoatraceScraper(BoatraceBase):
                 race_place = match_place.group(1).replace("　", "").strip()
 
             # レース情報の取得
-            match_race = re.match(r"([０-９])Ｒ\s+(\S+)", line)
+            match_race = re.match(r"([０-９]{1,2})Ｒ\s+(\S+)", line)
             if match_race:
                 race_number_zen = match_race.group(1)
                 zen_to_han = str.maketrans("０１２３４５６７８９", "0123456789")
@@ -588,10 +588,12 @@ if __name__ == "__main__":
     scraper = BoatraceScraper(folder, BorK="K")
             
     start_date = "2022-04-01"
-    end_date = "2022-12-31"
+    end_date = "2025-04-21"
     # ===============成績表スクレイピング===============
     scraperK = BoatraceScraper(folder, BorK="K")
     scraperK.scrape_and_process_data(start_date,end_date)
     # ===============番組表スクレイピング===============
     scraperB = BoatraceScraper(folder, BorK="B")
     scraperB.scrape_and_process_data(start_date,end_date)
+
+    
