@@ -36,7 +36,7 @@ if current_date!=None:
 boat_number_1, boat_number_2, boat_number_3, boat_number_4, boat_number_5, boat_number_6 = scraperB.get_player_numbers_by_race(date=today_date,venue=venue,race_number=race_no)
 
 analyzer = BoatraceAnalyzer(folder)
-"""
+
 outputs = analyzer.get_boatrace_data(start_date="2024-11-01", end_date=yesterday, venue="全国",
                             boat_number_1=boat_number_1, boat_number_2=boat_number_2,
                             boat_number_3=boat_number_3, boat_number_4=boat_number_4,
@@ -47,4 +47,4 @@ print(outputs)
 latestdata = BoatraceLatestDataScraper()
 latestoutputs = latestdata.get_latest_boatrace_data(place_name=venue,race_no=race_no,date=today_date)
 
-print(latestoutputs)"""
+print(latestoutputs)

@@ -447,7 +447,7 @@ class BoatraceML(BoatraceAnalyzer):
 
         return model, X_test, y_test, result_df
 
-    def train_multiclass_LGBM_exclusion_one(self, X, y, df):
+    def train_multiclass_lgbm_exclusion_one(self, X, y, df):
         # 1号艇を除外する場合
         mask = (y != 1)  # 2-6号艇のみ
         X_filtered = X[mask]
@@ -589,7 +589,7 @@ class BoatraceML(BoatraceAnalyzer):
         
         return model,X_test,y_test,result_df
 
-    def train_binary_LGBM(self, X, y, df, boat_number=1,is_place="first"):
+    def train_binary_lgbm(self, X, y, df, boat_number=1,is_place="first"):
         # ======== データ分割 ========
         # 元のインデックスを保持
         X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
@@ -1280,11 +1280,11 @@ if __name__ == "__main__":
     # モデル訓練
     # 1号艇が逃げるか?
     X, y, mean, std = BoatraceML.preprocess_binary(df_race, boat_number=1, is_place='first')
-    model, X_test, y_test, result_df = BoatraceML.train_binary_LGBM(X, y, df_race, boat_number=1)
+    model, X_test, y_test, result_df = BoatraceML.train_binary_lgbm(X, y, df_race, boat_number=1)
     
     # 逃げれなかった場合の2-6号艇のなかでどれが1着になるか？
     X,y,mean,std = BoatraceML.preprocess_multiclass(df_race)
-    model,X_test,y_test,result_df = BoatraceML.train_multiclass_LGBM_exclusion_one(X,y,df_race)
+    model,X_test,y_test,result_df = BoatraceML.train_multiclass_lgbm_exclusion_one(X,y,df_race)
     
     # 1号艇が逃げた場合
     # 2-3着を予測する

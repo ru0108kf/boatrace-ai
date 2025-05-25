@@ -12,12 +12,7 @@ class BoatraceAnalyzer(BoatraceBase):
         self.K_csv_folder = os.path.join(self.folder, "K_csv")
         
     def load_and_process_file(self, file_path):
-        """必要なパラメータを抽出、追加してデータフレームを作成する
-        Args:
-            file_path: ファイルのパス
-        Returns:
-            dataframe: データフレーム
-        """
+        """必要なパラメータを抽出、追加してデータフレームを作成する"""
         try:
             df = pd.read_csv(file_path, encoding="shift_jis")
         except FileNotFoundError:
@@ -83,13 +78,7 @@ class BoatraceAnalyzer(BoatraceBase):
         return df
     
     def make_raw_data(self, start_date, end_date):
-        """指定した日付範囲内のCSVファイルを読み込み、必要なパラメータを抽出してデータフレームを作成する
-        Args:
-            start_date: 開始日（YYYY-MM-DD形式）
-            end_date: 終了日（YYYY-MM-DD形式）
-        Returns:
-            dataframe: データフレーム
-        """
+        """指定した日付範囲内のCSVファイルを読み込み、必要なパラメータを抽出してデータフレームを作成する"""
         file_names = self.generate_date_list(start_date, end_date)
         file_paths = [os.path.join(self.K_csv_folder, f"K{file_name}.csv") for file_name in file_names]
 
@@ -105,7 +94,8 @@ class BoatraceAnalyzer(BoatraceBase):
         combined_df = pd.concat(df_list, ignore_index=True)
         return combined_df
     
-    def base_data(self, start_date, end_date, venue="全国"):
+    def get_base_data(self, start_date, end_date, venue="全国"):
+        """指定した日付範囲内の基本レース統計を取得する"""
         df = self.make_raw_data(start_date, end_date)
 
         # 全出走データ + 決まり手フラグ + 敗因フラグを集計
@@ -155,7 +145,8 @@ class BoatraceAnalyzer(BoatraceBase):
             
         return result
            
-    def escape_only_data(self, start_date, end_date, venue="全国"):
+    def get_escape_only_data(self, start_date, end_date, venue="全国"):
+        """指定した日付範囲内の逃げレース統計を取得する"""
         df = self.make_raw_data(start_date, end_date)
 
         # 決まり手が"逃げ"のデータを抽出
@@ -184,7 +175,8 @@ class BoatraceAnalyzer(BoatraceBase):
             result.columns = ["登録番号", "選手名", "艇番", "出走数", "勝利回数", "2着回数", "3着回数"]
             return result
     
-    def sasi_makuri_data(self, start_date, end_date, venue="全国"):
+    def get_sasi_makuri_data(self, start_date, end_date, venue="全国"):
+        """指定した日付範囲内の差しまくりのレース統計を取得する"""
         df = self.make_raw_data(start_date, end_date)
 
         # 条件に合致する場合にフラグを立てる（事前にすべて0で初期化）
@@ -230,13 +222,11 @@ class BoatraceAnalyzer(BoatraceBase):
 
     def get_boatrace_data(self, start_date, end_date, venue, boat_number_1=False, boat_number_2=False, 
                         boat_number_3=False, boat_number_4=False, boat_number_5=False, boat_number_6=False):
-        """
-        選手登録番号を入力し、各艇のデータを取得する
-        """
+        """選手登録番号を入力し、各艇のデータを取得する"""
         # 基本データを一度だけ取得
-        result = self.base_data(start_date=start_date, end_date=end_date, venue=venue)
-        result_sasi_makuri = self.sasi_makuri_data(start_date=start_date, end_date=end_date, venue=venue)
-        result_escape_only = self.escape_only_data(start_date=start_date, end_date=end_date, venue=venue)
+        result = self.get_base_data(start_date=start_date, end_date=end_date, venue=venue)
+        result_sasi_makuri = self.get_sasi_makuri_data(start_date=start_date, end_date=end_date, venue=venue)
+        result_escape_only = self.get_escape_only_data(start_date=start_date, end_date=end_date, venue=venue)
         
         outputs = {}
         
@@ -321,8 +311,21 @@ class BoatraceAnalyzer(BoatraceBase):
             outputs[output_keys[0]] = output_data
         
         return outputs
-    
-    def merge_data(self,start_date="2024-04-01", end_date="2025-03-31"):
+
+    def save_agg_data(self, start_date, end_date):
+        """1年分の過去データを保存"""
+        list = self.generate_date_list(start_date, end_date)
+        for name in list:
+            # 1年前の日付を取得
+            three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
+            # 1日前の日付を取得
+            one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+            # 基本データの取得
+            base_agg_df = self.get_base_data(start_date=three_months_ago, end_date=one_day_ago, venue="全国") 
+            base_agg_df.to_csv(self.folder+f"\\agg_csv\\Agg{name}.csv", index=False, encoding='shift-jis')      
+            
+    def get_merge_data(self,start_date="2024-04-01", end_date="2025-03-31"):
+        """レース番組表とレース結果をマージする"""
         list = self.generate_date_list(start_date, end_date)
         for name in list:
             df_K = pd.read_csv(self.folder+f"\\K_csv\\K{name}.csv", encoding='shift-jis')
@@ -339,23 +342,26 @@ class BoatraceAnalyzer(BoatraceBase):
             
             merged_df['日付'] = date
             
-            # 1年前の日付を取得
-            three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
-            # 1日前の日付を取得
-            one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
-            
-            # 基本データの取得
-            base_df = self.base_data(start_date=three_months_ago, end_date=one_day_ago, venue="全国") 
+            base_df = pd.read_csv(self.folder+f"\\agg_csv\\Agg{name}.csv", encoding="shift_jis")
             
             # データを結合する
             merged_df = pd.merge(merged_df, base_df[['登録番号', '艇番', '平均ST','全体平均ST']], on=['登録番号', '艇番'], how='left')
             
             # 1着率を計算
             merged_df['1着率'] = base_df['勝利回数'] / base_df['出走数']
-            # 2-3着率を計算
-            merged_df['2-3着率'] = (base_df['2着回数']+base_df['3着回数']) / base_df['出走数']
-            # 逃し率
+            # 2着率を計算
+            merged_df['2着率'] = base_df['2着回数'] / base_df['出走数']
+            # 3着率を計算
+            merged_df['3着率'] = base_df['3着回数'] / base_df['出走数']
+            # その他
+            merged_df['逃げ率'] = base_df['逃げ'] / base_df['出走数']
             merged_df['逃し率'] = base_df['逃し'] / base_df['出走数']
+            merged_df['差し率'] = base_df['差し'] / base_df['出走数']
+            merged_df['まくり率'] = base_df['まくり'] / base_df['出走数']
+            merged_df['まくり差し率'] = base_df['まくり差し'] / base_df['出走数']
+            merged_df['差され率'] = base_df['差され'] / base_df['出走数']
+            merged_df['まくられ率'] = base_df['まくられ'] / base_df['出走数']
+            merged_df['まくり差され率'] = base_df['まくり差され'] / base_df['出走数']
             
             # 日付を一番左のカラムに移動
             cols = merged_df.columns.tolist()
@@ -364,67 +370,37 @@ class BoatraceAnalyzer(BoatraceBase):
             
             merged_df.to_csv(self.folder+f"\\merged_csv\\{name}.csv", index=False, encoding='shift-jis')      
 
-    def format_race_data(self,target_date="2024-04-01"):
-        name = self.generate_date_list(start_date=target_date, end_date=target_date)[0]
-        df_B = pd.read_csv(self.folder+f"\\B_csv\\B{name}.csv", encoding='shift-jis')
-        
-        date = "20" + name[:2] + "-" + name[2:4] + "-" + name[4:6]
-        
-        df_B['日付'] = date
-        
-        # 1年前の日付を取得
-        three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
-        # 1日前の日付を取得
-        one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
-        
-        # 基本データの取得
-        base_df = self.base_data(start_date=three_months_ago, end_date=one_day_ago, venue="全国") 
-        
-        # データを結合する
-        merged_df = pd.merge(df_B, base_df[['登録番号', '艇番', '平均ST','全体平均ST']], on=['登録番号', '艇番'], how='left')
-        
-        # 1着率を計算
-        merged_df['1着率'] = base_df['勝利回数'] / base_df['出走数']
-        # 2-3着率を計算
-        merged_df['2-3着率'] = (base_df['2着回数']+base_df['3着回数']) / base_df['出走数']
-        # 逃し率
-        merged_df['逃し率'] = base_df['逃し'] / base_df['出走数']
-        
-        # 日付を一番左のカラムに移動
-        cols = merged_df.columns.tolist()
-        cols = ['日付'] + [col for col in cols if col != '日付']
-        merged_df = merged_df[cols]
-        
-        return merged_df
-
 if __name__ == "__main__":
     # ==================変更すべき欄==================
     folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
     # ==================変更してもOK==================
     # 集計期間
-    start_date = "2023-04-01"
+    start_date = "2024-06-24"
     end_date = "2025-03-31"
     
     # ===============================================
     analyzer = BoatraceAnalyzer(folder)
     
-    result = analyzer.base_data(start_date=start_date, end_date=end_date, venue="全国")
-    result.to_csv(f"{folder}\\agg_results\\national_agg.csv", index=False, encoding="shift_jis")
+    #result = analyzer.get_base_data(start_date=start_date, end_date=end_date, venue="全国")
+    #result.to_csv(f"{folder}\\agg_results\\national_agg.csv", index=False, encoding="shift_jis")
     
     # 特定のレース場のデータを集計
-    venue_name="住之江"
-    results_by_venue = analyzer.base_data(start_date=start_date, end_date=end_date, venue=venue_name)
-    results_by_venue.to_csv(f"{folder}\\agg_results\\{venue_name}_agg.csv", index=False, encoding="shift_jis")
+    #venue_name="住之江"
+    #results_by_venue = analyzer.get_base_data(start_date=start_date, end_date=end_date, venue=venue_name)
+    #results_by_venue.to_csv(f"{folder}\\agg_results\\{venue_name}_agg.csv", index=False, encoding="shift_jis")
     
     # 逃げデータのみの集計
-    result_escape_only = analyzer.escape_only_data(start_date=start_date, end_date=end_date, venue="全国")
-    result_escape_only.to_csv(f"{folder}\\agg_results\\escape_national_agg.csv", index=False, encoding="shift_jis")
+    #result_escape_only = analyzer.get_escape_only_data(start_date=start_date, end_date=end_date, venue="全国")
+    #result_escape_only.to_csv(f"{folder}\\agg_results\\escape_national_agg.csv", index=False, encoding="shift_jis")
     
     # 差しまくりデータの集計
-    sasi_makuri_results = analyzer.sasi_makuri_data(start_date=start_date, end_date=end_date, venue="全国")
-    sasi_makuri_results.to_csv(f"{folder}\\agg_results\\sasi_makuri_national_agg.csv", index=False, encoding="shift_jis")
+    #sasi_makuri_results = analyzer.get_sasi_makuri_data(start_date=start_date, end_date=end_date, venue="全国")
+    #sasi_makuri_results.to_csv(f"{folder}\\agg_results\\sasi_makuri_national_agg.csv", index=False, encoding="shift_jis")
+    
+    # 1年分の統計データを保存
+    #analyzer.save_agg_data(start_date,end_date)
     
     # BとKのデータを結合
-    analyzer.merge_data(start_date,end_date)
+    analyzer.get_merge_data(start_date,end_date)
 
 

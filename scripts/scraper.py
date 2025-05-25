@@ -23,7 +23,7 @@ class BoatraceScraper(BoatraceBase):
         self.download_folder = os.path.join(self.folder, f"{BorK}_lzh")
         self.kaitou_folder = os.path.join(self.folder, f"{BorK}_txt")
         self.csv_folder = os.path.join(self.folder,f"{BorK}_csv")
-        self.odds_folder = os.path.join(self.folder,"o_csv")
+        self.odds_folder = os.path.join(self.folder,"O_csv")
         os.makedirs(self.download_folder, exist_ok=True)
         os.makedirs(self.kaitou_folder, exist_ok=True)
         self.url = "https://www1.mbrace.or.jp/od2/B/dindex.html" if BorK == "B" else "https://www1.mbrace.or.jp/od2/K/dindex.html"
@@ -121,12 +121,7 @@ class BoatraceScraper(BoatraceBase):
             browser.quit()
 
     def parse_B_txt(self, file_name):
-        """
-        番組表のtxtを解析し、 DataFrame に変換する
-
-        :param file_name: 解析するテキストファイルの名前
-        :return: 解析したDataFrame
-        """
+        """番組表のtxtを解析し、 DataFrame に変換する"""
         os.makedirs(self.csv_folder, exist_ok=True)  # 保存先フォルダがなければ作成
         
         # txtファイルのパスを作成
@@ -204,12 +199,7 @@ class BoatraceScraper(BoatraceBase):
         return df
 
     def parse_K_txt(self, file_name):
-        """
-        レース成績のtxtを解析し、DataFrame に変換する
-        
-        :param file_name: 解析するテキストファイルの名前
-        :return: 解析したDataFrame
-        """
+        """レース成績のtxtを解析し、DataFrame に変換する"""
         os.makedirs(self.csv_folder, exist_ok=True)  # 保存先フォルダがなければ作成
         
         # txtファイルのパスを作成
@@ -286,7 +276,8 @@ class BoatraceScraper(BoatraceBase):
         
         return df
     
-    def parse_all_odds_from_K(self,file_name):
+    def odds_parsed_by_K_txt(self, file_name):
+        """オッズデータを保存"""
         os.makedirs(self.odds_folder, exist_ok=True)  # 保存先フォルダがなければ作成
         
         # txtファイルのパスを作成
@@ -332,7 +323,7 @@ class BoatraceScraper(BoatraceBase):
                         })
 
         df = pd.DataFrame(odds_data)
-        csv_path = os.path.join(self.odds_folder, f"o{file_name}.csv")
+        csv_path = os.path.join(self.odds_folder, f"O{file_name[1:]}.csv")
         df.to_csv(csv_path, index=False, encoding="shift_jis")
         return df
 
@@ -361,7 +352,7 @@ class BoatraceScraper(BoatraceBase):
             print("番組表テキストの解析（K方式）開始")
             for file_name in file_lists:
                 self.parse_K_txt(file_name)
-                self.parse_all_odds_from_K(file_name)
+                self.odds_parsed_by_K_txt(file_name)
             print("K番組表CSV変換完了")
 
         print("全処理完了")
@@ -580,7 +571,6 @@ class BoatraceLatestDataScraper():
         }
         return outputs
     
-
 if __name__ == "__main__":
     # ==================変更すべき欄==================
     folder = "C:\\Users\\msy-t\\boatrace-ai\\data"
@@ -588,12 +578,13 @@ if __name__ == "__main__":
     scraper = BoatraceScraper(folder, BorK="K")
             
     start_date = "2022-04-01"
-    end_date = "2025-04-21"
+    end_date = "2025-04-30"
     # ===============成績表スクレイピング===============
     scraperK = BoatraceScraper(folder, BorK="K")
     scraperK.scrape_and_process_data(start_date,end_date)
     # ===============番組表スクレイピング===============
     scraperB = BoatraceScraper(folder, BorK="B")
     scraperB.scrape_and_process_data(start_date,end_date)
+
 
     
