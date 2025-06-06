@@ -9,6 +9,18 @@
 - Web/スマホアプリ化（未実装）
 
 ---
+## スクレイピング
+ボートレースの公式サイトからスクレイピングを行う。
+
+## 機械学習
+LightGBMを用いて順位を予測する。
+
+## 開発環境
+- Python 3.9+
+
+## Author
+- 管理者：@ru0108kf
+- リーダー：usami
 
 ## ディレクトリ構成
 ```text
@@ -32,10 +44,5 @@ boatrace-analyzer/
 ├── requirements.txt       # 必要ライブラリ
 └── README.md
 ```
-## 開発環境
-- Python 3.9+
 
-## Author
-- 管理者：@ru0108kf
-- リーダー：usami
   
