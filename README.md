@@ -12,6 +12,8 @@
 ### セットアップ
     ```bash
     git clone [https://github.com/ru0108kf/boatrace-ai.git](https://github.com/ru0108kf/boatrace-ai.git)
+    ```
+    ```bash
     cd boatrace-ai
     python -m venv venv
     .\venv\Scripts\activate
