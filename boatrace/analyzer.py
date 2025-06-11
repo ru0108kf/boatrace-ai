@@ -1,0 +1,401 @@
+import pandas as pd
+from datetime import datetime, timedelta
+import os
+
+from .base.base import BoatraceBase
+
+class BoatraceAnalyzer(BoatraceBase):
+    def __init__(self, folder):
+        super().__init__(folder)
+        self.B_csv_folder = os.path.join(self.folder, "B_csv")
+        self.K_csv_folder = os.path.join(self.folder, "K_csv")
+        
+    def load_and_process_file(self, file_path):
+        """必要なパラメータを抽出、追加してデータフレームを作成する"""
+        try:
+            df = pd.read_csv(file_path, encoding="shift_jis")
+        except FileNotFoundError:
+            return None  # ファイルが存在しない場合は None を返す
+        
+        # ファイル名から日付を取得
+        file_name = os.path.basename(file_path)
+        date = file_name[1:7]
+        
+        # レースIDを作成する（各レースを一意に識別するためのID）
+        # 日付, レース場, レース番号を組み合わせて作成
+        df["レースID"] = date + "_" + df["レース場"] + "_" + df["レース番号"].astype(str)
+        
+        # 優勝した艇番を取得 (レースIDごとに1着の艇番を取得する)
+        df["勝者"] = df.groupby("レースID")["艇番"].transform(lambda x: x.iloc[0])
+        
+        # フラグを作成し、整数に変換
+        df["1着"] = (df["着順"] == 1).astype(int)
+        df["2着"] = (df["着順"] == 2).astype(int)
+        df["3着"] = (df["着順"] == 3).astype(int)
+        df["4着"] = (df["着順"] == 4).astype(int)
+        df["5着"] = (df["着順"] == 5).astype(int)
+        df["6着"] = (df["着順"] == 6).astype(int)
+        
+        # 決まり手のフラグ（勝者のみ）
+        decision_types = ["逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"]
+        for k in decision_types:
+            df[k] = 0  # 初期化
+
+        # 決まり手が該当する行（かつ着順が1）だけ1にする
+        for k in decision_types:
+            df.loc[(df["決まり手"] == k) & (df["着順"] == 1), k] = 1
+            
+        # 敗因マッピング
+        b1_defeat_map = {"差し": "差され", "まくり": "まくられ", "まくり差し": "まくり差され"}
+        b2_defeat_map = {"逃げ": "逃し"}
+
+        # 敗因カラム追加
+        for col in list(b1_defeat_map.values()) + list(b2_defeat_map.values()):
+            df[col] = 0
+
+        # 各レースごとに処理
+        for race_id, group in df.groupby("レースID"):
+            if group.empty:
+                continue
+
+            decision = group["決まり手"].iloc[0]
+            winner = group.loc[group["着順"] == 1, "艇番"].values
+            if len(winner) == 0:
+                continue
+            winner = winner[0]
+
+            # 1号艇処理
+            b1 = group[group["艇番"] == 1]
+            if not b1.empty and winner != 1 and decision in b1_defeat_map:
+                df.loc[b1.index, b1_defeat_map[decision]] = 1
+
+            # 2号艇処理
+            b2 = group[group["艇番"] == 2]
+            if not b2.empty and winner != 2 and decision in b2_defeat_map:
+                df.loc[b2.index, b2_defeat_map[decision]] = 1
+        
+        return df
+
+    def get_base_data(self, start_date, end_date, venue="全国"):
+        """指定した日付範囲内の基本レース統計を取得する"""
+        df = self._make_raw_data(start_date, end_date)
+
+        # 全出走データ + 決まり手フラグ + 敗因フラグを集計
+        agg_columns = {
+            "着順": "count",          # 出走数
+            "1着": "sum",             # 勝利回数
+            "2着": "sum",             # 2着回数
+            "3着": "sum",             # 3着回数
+            "スタートタイミング": "mean",  # 平均ST
+            "逃げ": "sum",
+            "差し": "sum",
+            "まくり": "sum",
+            "まくり差し": "sum",
+            "抜き": "sum",
+            "恵まれ": "sum",
+            "差され": "sum", 
+            "まくられ": "sum", 
+            "まくり差され": "sum",
+            "逃し": "sum"
+        }
+        
+        # スタートタイミングの平均値を計算
+        avg_st_time = df.groupby(["登録番号", "選手名"])["スタートタイミング"].mean().reset_index()
+        avg_st_time.columns = ["登録番号", "選手名", "平均ST"]
+
+        if venue == "全国":
+            # 統合して1回の groupby + agg にまとめる
+            result = (df.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index().fillna(0))
+            # 列名をわかりやすく変更
+            result = result.rename(columns={"着順": "出走数","1着": "勝利回数","2着": "2着回数","3着": "3着回数","スタートタイミング": "平均ST"})
+            # 全体平均STを別で計算
+            avg_st_time = df.groupby(["登録番号", "選手名"])["スタートタイミング"].mean().reset_index()
+            avg_st_time.columns = ["登録番号", "選手名", "全体平均ST"]
+            # マージして「全体平均ST」列を追加
+            result = pd.merge(result, avg_st_time, on=["登録番号", "選手名"], how="left")
+            
+        else:
+            # 指定されたレース場のみフィルタリング
+            venue_data = df[df["レース場"] == venue]
+            if venue_data.empty:
+                raise ValueError(f"指定されたレース場「{venue}」のデータが存在しません。")
+            result = (venue_data.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index().fillna(0))
+            result = result.rename(columns={"着順": "出走数","1着": "勝利回数","2着": "2着回数","3着": "3着回数","スタートタイミング": "平均ST"})
+            avg_st_time = venue_data.groupby(["登録番号", "選手名"])["スタートタイミング"].mean().reset_index()
+            avg_st_time.columns = ["登録番号", "選手名", "全体平均ST"]
+            result = pd.merge(result, avg_st_time, on=["登録番号", "選手名"], how="left")
+            
+        return result
+
+    def get_escape_only_data(self, start_date, end_date, venue="全国"):
+        """指定した日付範囲内の逃げレース統計を取得する"""
+        df = self._make_raw_data(start_date, end_date)
+
+        # 決まり手が"逃げ"のデータを抽出
+        escaped_df = df[df["決まり手"] == "逃げ"]
+        agg_columns = {
+            "着順": "count",
+            "1着": "sum",
+            "2着": "sum",
+            "3着": "sum"
+        }
+
+        if venue=="全国":
+            result = escaped_df.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index()
+            result.columns = ["登録番号", "選手名", "艇番", "出走数", "勝利回数", "2着回数", "3着回数"]
+            return result
+
+        else:
+            # レース場が指定された場合、そのレース場のみフィルタリング
+            venue_data = escaped_df[escaped_df["レース場"] == venue]
+            
+            if venue_data.empty:
+                raise ValueError(f"指定されたレース場「{venue}」のデータが存在しません。")
+            
+            # 指定されたレース場のデータを集計
+            result = venue_data.groupby(["登録番号", "選手名", "艇番"]).agg(agg_columns).reset_index()
+            result.columns = ["登録番号", "選手名", "艇番", "出走数", "勝利回数", "2着回数", "3着回数"]
+            return result
+
+    def get_sasi_makuri_data(self, start_date, end_date, venue="全国"):
+        """指定した日付範囲内の差しまくりのレース統計を取得する"""
+        df = self._make_raw_data(start_date, end_date)
+
+        # 条件に合致する場合にフラグを立てる（事前にすべて0で初期化）
+        df = df.assign(
+            no1_sasare_by_no2=((df["艇番"] == 1) & (df["決まり手"] == "差し") & (df["勝者"] == 2)).astype(int),
+            no1_makurare_by_no2=((df["艇番"] == 1) & (df["決まり手"] == "まくり") & (df["勝者"] == 2)).astype(int),
+            no1_makurare_by_no3=((df["艇番"] == 1) & (df["決まり手"] == "まくり") & (df["勝者"] == 3)).astype(int),
+            no1_makurisasare_by_no3=((df["艇番"] == 1) & (df["決まり手"] == "まくり差し") & (df["勝者"] == 3)).astype(int),
+
+            no2_sasi=((df["艇番"] == 2) & (df["決まり手"] == "差し") & (df["勝者"] == 2)).astype(int),
+            no2_makuri=((df["艇番"] == 2) & (df["決まり手"] == "まくり") & (df["勝者"] == 2)).astype(int),
+
+            no3_makuri=((df["艇番"] == 3) & (df["決まり手"] == "まくり") & (df["勝者"] == 3)).astype(int),
+            no3_makurisasi=((df["艇番"] == 3) & (df["決まり手"] == "まくり差し") & (df["勝者"] == 3)).astype(int),
+
+            no4_sasi=((df["艇番"] == 4) & (df["決まり手"] == "差し") & (df["勝者"] == 4)).astype(int),
+            no4_makuri=((df["艇番"] == 4) & (df["決まり手"] == "まくり") & (df["勝者"] == 4)).astype(int),
+            no4_makurisasi=((df["艇番"] == 4) & (df["決まり手"] == "まくり差し") & (df["勝者"] == 4)).astype(int),
+
+            no5_sasi=((df["艇番"] == 5) & (df["決まり手"] == "差し") & (df["勝者"] == 5)).astype(int),
+            no5_makuri=((df["艇番"] == 5) & (df["決まり手"] == "まくり") & (df["勝者"] == 5)).astype(int),
+            no5_makurisasi=((df["艇番"] == 5) & (df["決まり手"] == "まくり差し") & (df["勝者"] == 5)).astype(int),
+
+            no6_sasi=((df["艇番"] == 6) & (df["決まり手"] == "差し") & (df["勝者"] == 6)).astype(int),
+            no6_makuri=((df["艇番"] == 6) & (df["決まり手"] == "まくり") & (df["勝者"] == 6)).astype(int),
+            no6_makurisasi=((df["艇番"] == 6) & (df["決まり手"] == "まくり差し") & (df["勝者"] == 6)).astype(int)
+        )
+
+        # 使用する列だけフィルタリング
+        flag_cols = [col for col in df.columns if col.startswith("no")]
+        df_filtered = df[["登録番号", "選手名", "レース場"] + flag_cols]
+
+        # 会場でフィルター（全国 or 特定会場）
+        if venue != "全国":
+            df_filtered = df_filtered[df_filtered["レース場"] == venue]
+            if df_filtered.empty:
+                raise ValueError(f"指定されたレース場「{venue}」のデータが存在しません。")
+
+        # 集計
+        result = df_filtered.groupby(["登録番号", "選手名"])[flag_cols].sum().reset_index()
+
+        return result
+
+    def get_boatrace_data(self, date, venue, race_number, target_venue="全国",lookback_days=365):
+        """日付とレース場とレース番号を入力として、各艇のデータを取得する"""
+
+        file_name = self.generate_date_list(date, date)[0]
+        path = self.folder + "/B_csv/B" + file_name + ".csv"
+        
+        try:
+            df = pd.read_csv(path, encoding='shift-jis')
+        except FileNotFoundError:
+            raise FileNotFoundError(f"指定されたCSVファイルが見つかりません: {path}")
+        except Exception as e:
+            raise Exception(f"CSVファイルの読み込み中にエラーが発生しました: {e}")
+        
+        # レース場とレース番号でフィルタリング
+        filtered_data = df[(df['レース場'] == venue) & (df['レース番号'] == race_number)]
+        
+        if filtered_data.empty:
+            raise ValueError(f"フィルタリング結果が空です。該当するデータが見つかりません。venue: {venue}, race_number: {race_number}")
+        
+        if len(filtered_data) < 6:
+            raise IndexError(f"フィルタリング後のデータが不足しています。必要なデータ数: 6、取得できたデータ数: {len(filtered_data)}")
+        
+        boat_number_1 = filtered_data['登録番号'].iloc[0]
+        boat_number_2 = filtered_data['登録番号'].iloc[1]
+        boat_number_3 = filtered_data['登録番号'].iloc[2]
+        boat_number_4 = filtered_data['登録番号'].iloc[3]
+        boat_number_5 = filtered_data['登録番号'].iloc[4]
+        boat_number_6 = filtered_data['登録番号'].iloc[5]
+        
+        # 戻りたい日にち分の戻った日付を取得
+        lookback_days_ago = (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=lookback_days+1)).strftime("%Y-%m-%d")
+        # 1日前の日付を取得
+        one_day_ago = (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # 基本データを一度だけ取得
+        result = self.get_base_data(start_date=lookback_days_ago, end_date=one_day_ago, venue=target_venue)
+        result_sasi_makuri = self.get_sasi_makuri_data(start_date=lookback_days_ago, end_date=one_day_ago, venue=target_venue)
+        result_escape_only = self.get_escape_only_data(start_date=lookback_days_ago, end_date=one_day_ago, venue=target_venue)
+        
+        outputs = {}
+        
+        # 各艇番号ごとの処理を共通化
+        boat_configs = [
+            (1, boat_number_1, ["1号艇"], ["艇番"]),
+            (2, boat_number_2, ["2号艇"], ["艇番"]),
+            (3, boat_number_3, ["3号艇"], ["艇番"]),
+            (4, boat_number_4, ["4号艇"], ["艇番"]),
+            (5, boat_number_5, ["5号艇"], ["艇番"]),
+            (6, boat_number_6, ["6号艇"], ["艇番"])
+        ]
+        
+        for boat_num, boat_number, output_keys, filter_cols in boat_configs:
+            if not boat_number:
+                continue
+                
+            # 共通フィルタ条件
+            filters = {"登録番号": boat_number}
+            if filter_cols:
+                filters.update({"艇番": boat_num})
+            
+            # データフィルタリング（一度だけ行う）
+            base_df = result[(result["登録番号"] == boat_number) & (result["艇番"] == boat_num)] if filter_cols else result[result["登録番号"] == boat_number]
+            sasi_makuri_df = result_sasi_makuri[result_sasi_makuri["登録番号"] == boat_number]
+            escape_df = result_escape_only[(result_escape_only["登録番号"] == boat_number) & (result_escape_only["艇番"] == boat_num)] if boat_num in [2,3,4,5,6] else None
+            
+            # 出走数（分母）を計算
+            race_count = base_df["出走数"].iloc[0] if not base_df.empty and base_df["出走数"].iloc[0] > 0 else 0
+            
+            # 艇番ごとの特別な計算
+            if boat_num == 1:
+                output_data = {
+                    "選手名": base_df["選手名"].iloc[0] if not base_df.empty else "Unknown",
+                    "1着率": (base_df["勝利回数"].iloc[0] / race_count) if not base_df.empty and race_count > 0 else 0,
+                    "2号艇にまくられさされ率": (
+                        (sasi_makuri_df["no1_sasare_by_no2"].iloc[0] + sasi_makuri_df["no1_makurare_by_no2"].iloc[0]) / race_count 
+                        if not sasi_makuri_df.empty and race_count > 0 else 0
+                    ),
+                    "3号艇にまくられさされ率": (
+                        (sasi_makuri_df["no1_makurare_by_no3"].iloc[0] + sasi_makuri_df["no1_makurisasare_by_no3"].iloc[0]) / race_count 
+                        if not sasi_makuri_df.empty and race_count > 0 else 0
+                    ),
+                    "平均ST": base_df["全体平均ST"].iloc[0] if not base_df.empty else 0
+                }
+            elif boat_num == 2:
+                output_data = {
+                    "選手名": base_df["選手名"].iloc[0] if not base_df.empty else "Unknown",
+                    "差し率": (sasi_makuri_df["no2_sasi"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "まくり率": (sasi_makuri_df["no2_makuri"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "逃し率": (escape_df["出走数"].iloc[0] / race_count) if escape_df is not None and not escape_df.empty and race_count > 0 else 0,
+                    "1号艇が逃げた時の2-3着率": (
+                        (escape_df["2着回数"].iloc[0] + escape_df["3着回数"].iloc[0]) / race_count 
+                        if escape_df is not None and not escape_df.empty and race_count > 0 else 0
+                    ),
+                    "平均ST": base_df["全体平均ST"].iloc[0] if not base_df.empty else 0
+                }
+            elif boat_num == 3:
+                output_data = {
+                    "選手名": base_df["選手名"].iloc[0] if not base_df.empty else "Unknown",
+                    "まくり率": (sasi_makuri_df["no3_makuri"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "まくり差し率": (sasi_makuri_df["no3_makurisasi"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "1号艇が逃げた時の2-3着率": (
+                        (escape_df["2着回数"].iloc[0] + escape_df["3着回数"].iloc[0]) / race_count 
+                        if escape_df is not None and not escape_df.empty and race_count > 0 else 0
+                    ),
+                    "平均ST": base_df["全体平均ST"].iloc[0] if not base_df.empty else 0
+                }
+            elif boat_num in [4,5,6]:
+                output_data = {
+                    "選手名": base_df["選手名"].iloc[0] if not base_df.empty else "Unknown",
+                    "差し1着率": (sasi_makuri_df[f"no{boat_num}_sasi"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "まくり1着率": (sasi_makuri_df[f"no{boat_num}_makuri"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "まくり差し1着率": (sasi_makuri_df[f"no{boat_num}_makurisasi"].iloc[0] / race_count) if not sasi_makuri_df.empty and race_count > 0 else 0,
+                    "1号艇が逃げた時の2-3着率": (
+                        (escape_df["2着回数"].iloc[0] + escape_df["3着回数"].iloc[0]) / race_count 
+                        if escape_df is not None and not escape_df.empty and race_count > 0 else 0
+                    ),
+                    "平均ST": base_df["全体平均ST"].iloc[0] if not base_df.empty else 0
+                }
+            
+            outputs[output_keys[0]] = output_data
+        
+        return outputs
+
+    def save_agg_data(self, start_date, end_date):
+        """1年分の過去データを保存"""
+        list = self.generate_date_list(start_date, end_date)
+        for name in list:
+            # 1年前の日付を取得
+            three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
+            # 1日前の日付を取得
+            one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+            # 基本データの取得
+            base_agg_df = self.get_base_data(start_date=three_months_ago, end_date=one_day_ago, venue="全国") 
+            base_agg_df.to_csv(self.folder+f"/agg_csv/Agg{name}.csv", index=False, encoding='shift-jis')      
+
+    def get_merge_data(self,start_date="2024-04-01", end_date="2025-03-31"):
+        """レース番組表とレース結果をマージする"""
+        list = self.generate_date_list(start_date, end_date)
+        for name in list:
+            df_K = pd.read_csv(self.folder+f"/K_csv/K{name}.csv", encoding='shift-jis')
+            df_B = pd.read_csv(self.folder+f"/B_csv/B{name}.csv", encoding='shift-jis')
+            
+            date = "20" + name[:2] + "-" + name[2:4] + "-" + name[4:6]
+
+            # 結合と重複カラムを削除
+            common_columns = ['レース場', 'レース番号', '登録番号']
+            overlapping_columns = ['レース種別','艇番','選手名','モーター番号','ボート番号']
+            
+            df_K = df_K.drop(columns=overlapping_columns)
+            merged_df = pd.merge(df_B, df_K, on=common_columns, how='inner')
+            
+            merged_df['日付'] = date
+            
+            base_df = pd.read_csv(self.folder+f"/agg_csv/Agg{name}.csv", encoding="shift_jis")
+            
+            # データを結合する
+            merged_df = pd.merge(merged_df, base_df[['登録番号', '艇番', '平均ST','全体平均ST']], on=['登録番号', '艇番'], how='left')
+            
+            # 1着率を計算
+            merged_df['1着率'] = base_df['勝利回数'] / base_df['出走数']
+            # 2着率を計算
+            merged_df['2着率'] = base_df['2着回数'] / base_df['出走数']
+            # 3着率を計算
+            merged_df['3着率'] = base_df['3着回数'] / base_df['出走数']
+            # その他
+            merged_df['逃げ率'] = base_df['逃げ'] / base_df['出走数']
+            merged_df['逃し率'] = base_df['逃し'] / base_df['出走数']
+            merged_df['差し率'] = base_df['差し'] / base_df['出走数']
+            merged_df['まくり率'] = base_df['まくり'] / base_df['出走数']
+            merged_df['まくり差し率'] = base_df['まくり差し'] / base_df['出走数']
+            merged_df['差され率'] = base_df['差され'] / base_df['出走数']
+            merged_df['まくられ率'] = base_df['まくられ'] / base_df['出走数']
+            merged_df['まくり差され率'] = base_df['まくり差され'] / base_df['出走数']
+            
+            # 日付を一番左のカラムに移動
+            cols = merged_df.columns.tolist()
+            cols = ['日付'] + [col for col in cols if col != '日付']
+            merged_df = merged_df[cols]
+            
+            merged_df.to_csv(self.folder+f"/merged_csv/{name}.csv", index=False, encoding='shift-jis') 
+
+    def _make_raw_data(self, start_date, end_date):
+        """指定した日付範囲内のCSVファイルを読み込み、必要なパラメータを抽出してデータフレームを作成する"""
+        file_names = self.generate_date_list(start_date, end_date)
+        file_paths = [os.path.join(self.K_csv_folder, f"K{file_name}.csv") for file_name in file_names]
+
+        df_list = []
+        for file_path in file_paths:
+            df = self.load_and_process_file(file_path)
+            if df is not None:
+                df_list.append(df)
+
+        if len(df_list) == 0:
+            raise FileNotFoundError("指定した日付範囲内に有効なCSVファイルが存在しません。")
+        
+        combined_df = pd.concat(df_list, ignore_index=True)
+        return combined_df
