@@ -1,35 +1,16 @@
-# 必要なモジュールを記載するファイルです。
-# 使用する際は以下のモジュールをpipしてください。
-
-# データ処理
 pandas==1.5.3
 numpy==1.24.2
-
-# 機械学習モデル
 scikit-learn==1.2.2
 xgboost==1.7.4
 lightgbm==3.3.5
 imblearn==0.0
-
-# データ可視化
 matplotlib==3.7.1
 seaborn==0.12.2
 japanize-matplotlib==1.1.3
-
-# 深層学習
 tensorflow==2.13.0
 keras==2.13.1
-
-# その他ユーティリティ
 jupyter==1.0.0
-
-# WebスクレイピングとHTML解析
 selenium==4.10.0
 beautifulsoup4==4.12.2
 lhafile==0.2.4
-
-# WebDriver Manager
 webdriver-manager==3.8.6
-
-# ハイパーパラメータ最適化
-optuna==3.3.0
