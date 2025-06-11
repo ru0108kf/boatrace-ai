@@ -9,14 +9,15 @@
 - Web/スマホアプリ化（未実装）
 
 ---
-### セットアップ
-1.  **リポジトリをクローンする**
+## セットアップ
+```bash
+git clone [https://github.com/ru0108kf/boatrace-ai.git](https://github.com/ru0108kf/boatrace-ai.git)
+cd boatrace-ai
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-    まず、以下のコマンドを使用してこのリポジトリをローカルにクローンします。
-
-    ```bash
-    git clone [https://github.com/ru0108kf/boatrace-ai.git](https://github.com/ru0108kf/boatrace-ai.git)
-    ```
 ## ディレクトリ構成
 ```text
 boatrace-ai-analyzer/
