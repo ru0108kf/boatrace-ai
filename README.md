@@ -9,7 +9,28 @@
 - Web/スマホアプリ化（未実装）
 
 ---
+### セットアップ
+1.  **リポジトリをクローンする**
+    ```bash
+    git clone [https://github.com/ru0108kf/boatrace-ai.git](https://github.com/ru0108kf/boatrace-ai.git)
+    ```
 
+2.  **プロジェクトディレクトリへ移動する**
+    ```bash
+    cd boatrace-ai
+    ```
+3.  **仮想環境の作成とアクティベート (推奨)**
+    ```bash
+    python -m venv venv
+    ```
+    * **Windows:**
+        ```bash
+        .\venv\Scripts\activate
+        ```
+    * **macOS/Linux:**
+        ```bash
+        source venv/bin/activate
+        ```
 ## ディレクトリ構成
 ```text
 boatrace-ai-analyzer/
