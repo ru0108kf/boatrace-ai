@@ -12,7 +12,7 @@
 
 ## ディレクトリ構成
 ```text
-boatrace-analyzer/
+boatrace-ai-analyzer/
 ├── data/                  # 生データ（TXT,csvなど）
 │   ├── K_lzh  # 競走成績_lxh
 │   ├── B_lzh  # 番組表_lzh
@@ -20,10 +20,10 @@ boatrace-analyzer/
 │   ├── B_txt  # 番組表_txt
 │   ├── K_csv  # 競走成績_csv
 │   ├── B_csv  # 番組表_csv
-│   ├── o_csv  # オッズ_csv
+│   ├── O_csv  # オッズ_csv
 │   ├── merged_csv  # 番組表と競走成績をマージしたcsv
 │   └── agg_results # 集計結果をまとめたフォルダ
-├── scripts/
+├── boatrace/
 │   ├── base.py  # 処理をまとめたクラス
 │   ├── scraper.py    # スクレイピング処理
 │   ├── analyzer.py     # 分析処理
