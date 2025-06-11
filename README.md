@@ -25,10 +25,14 @@ boatrace-ai-analyzer/
 │   └── agg_results # 集計結果をまとめたフォルダ
 ├── boatrace/
 │   ├── base/
-│   │   ├── base.py  # 処理をまとめたクラス  # 処理をまとめたクラス
+│   │   └── base.py  # 処理をまとめたクラス  # 処理をまとめたクラス
+│   ├── machinelearning/
+│   │   ├── bettingstrategyevaluator.py
+│   │   ├── datacompiler.py
+│   │   └── modeltrainer.py
 │   ├── scraper.py    # スクレイピング処理
 │   ├── analyzer.py     # 分析処理
-│   └── machinelearning.py     # 機械学習
+│   └── boatraceml.py     # 機械学習
 ├── main.py                # 実行用スクリプト
 ├── requirements.txt       # 必要ライブラリ
 └── README.md
