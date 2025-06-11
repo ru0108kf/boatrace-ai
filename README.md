@@ -31,6 +31,7 @@ boatrace-ai-analyzer/
 │   │   ├── datacompiler.py
 │   │   └── modeltrainer.py
 │   ├── scraper.py    # スクレイピング処理
+│   ├── latestscraper.py # 直前情報スクレイピング処理
 │   ├── analyzer.py     # 分析処理
 │   └── boatraceml.py     # 機械学習
 ├── main.py                # 実行用スクリプト
