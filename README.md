@@ -1,4 +1,4 @@
-# boarrace-ai
+# boarrace-ai-analyzer
 競艇アルゴリズムの構築を目指すプロジェクトです。
 
 ## 機能概要
@@ -24,7 +24,8 @@ boatrace-ai-analyzer/
 │   ├── merged_csv  # 番組表と競走成績をマージしたcsv
 │   └── agg_results # 集計結果をまとめたフォルダ
 ├── boatrace/
-│   ├── base.py  # 処理をまとめたクラス
+│   ├── base/
+│   │   ├── base.py  # 処理をまとめたクラス  # 処理をまとめたクラス
 │   ├── scraper.py    # スクレイピング処理
 │   ├── analyzer.py     # 分析処理
 │   └── machinelearning.py     # 機械学習
