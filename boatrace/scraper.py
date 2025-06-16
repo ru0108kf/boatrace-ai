@@ -16,13 +16,13 @@ import pandas as pd
 from .base.base import BoatraceBase
 
 class BoatraceScraper(BoatraceBase):
-    def __init__(self,folder,BorK="B"):
-        super().__init__(folder)
+    def __init__(self,BorK="B"):
+        super().__init__()
         self.BorK = BorK
-        self.download_folder = os.path.join(self.folder, f"{BorK}_lzh")
-        self.kaitou_folder = os.path.join(self.folder, f"{BorK}_txt")
-        self.csv_folder = os.path.join(self.folder,f"{BorK}_csv")
-        self.odds_folder = os.path.join(self.folder,"O_csv")
+        self.download_folder = os.path.join(self.data_folder, f"{BorK}_lzh")
+        self.kaitou_folder = os.path.join(self.data_folder, f"{BorK}_txt")
+        self.csv_folder = os.path.join(self.data_folder,f"{BorK}_csv")
+        self.odds_folder = os.path.join(self.data_folder,"O_csv")
         os.makedirs(self.download_folder, exist_ok=True)
         os.makedirs(self.kaitou_folder, exist_ok=True)
         self.url = "https://www1.mbrace.or.jp/od2/B/dindex.html" if BorK == "B" else "https://www1.mbrace.or.jp/od2/K/dindex.html"
@@ -280,7 +280,7 @@ class BoatraceScraper(BoatraceBase):
         os.makedirs(self.odds_folder, exist_ok=True)  # 保存先フォルダがなければ作成
         
         # txtファイルのパスを作成
-        txt_file_path = os.path.join(self.folder+"\\K_txt", f"{file_name}.txt")
+        txt_file_path = os.path.join(self.kaitou_folder, f"{file_name}.txt")
         
         file_date = "20" + file_name[1:3] + "-" + file_name[3:5] + "-" + file_name[5:7]
         
@@ -356,21 +356,24 @@ class BoatraceScraper(BoatraceBase):
 
         print("全処理完了")
 
-def run(folder,today_date):
+def run(today_date):
     today_datetime = datetime.strptime(today_date, '%Y-%m-%d')
     yesterday = (today_datetime - timedelta(days=1)).strftime('%Y-%m-%d')
 
-    scraperK = BoatraceScraper(folder, BorK="K")
+    scraperK = BoatraceScraper(BorK="K")
     current_date = scraperK.find_current_dates(date=yesterday,BorK="K")
     if current_date!=None:
         if current_date==today_date:
             scraperK.scrape_and_process_data(start_date=yesterday,end_date=yesterday)
+        else:
             scraperK.scrape_and_process_data(start_date=current_date,end_date=yesterday)
 
-    scraperB = BoatraceScraper(folder, BorK="B")
+    scraperB = BoatraceScraper(BorK="B")
     current_date = scraperB.find_current_dates(date=today_date,BorK="B")
     if current_date!=None:
         if current_date==today_date:
-            scraperB.scrape_and_process_data(start_date=yesterday,end_date=yesterday)
+            scraperB.scrape_and_process_data(start_date=today_date,end_date=today_date)
         else:
             scraperB.scrape_and_process_data(start_date=current_date,end_date=today_date)
+    
+    

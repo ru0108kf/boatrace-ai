@@ -8,9 +8,8 @@ from boatrace.analyzer import BoatraceAnalyzer
 
 class DataCompiler(BoatraceAnalyzer):
     """データ収集と前処理を担当するクラス"""
-    def __init__(self, folder):
-        super().__init__(folder)
-        self.folder = folder
+    def __init__(self):
+        super().__init__()
         self.scaler = None
         self.categorical_cols = ['レース場','天候', '風向',
                                 '1号艇_登録番号', '1号艇_支部', '1号艇_級別', '1号艇_モーター番号', '1号艇_ボート番号',
@@ -24,10 +23,12 @@ class DataCompiler(BoatraceAnalyzer):
         self.feature_columns = None
         self.categorical_indices = None
 
-    def compile_race_data(self,target_places=None):
+    def compile_race_data(self,start_date,end_date,target_places=None):
         """レースデータをコンパイル"""
-        merged_csv_folder = os.path.join(self.folder, "merged_csv")
-        all_files = [os.path.join(merged_csv_folder, f) for f in os.listdir(merged_csv_folder) if f.endswith('.csv')]
+        merged_csv_folder = os.path.join(self.data_folder, "merged_csv")
+        all_files = []
+        for file_name in self.generate_date_list(start_date, end_date):
+            all_files.append(os.path.join(merged_csv_folder, f"{file_name}.csv"))
 
         all_dataframes = []
         for filepath in all_files:
@@ -127,10 +128,35 @@ class DataCompiler(BoatraceAnalyzer):
 
         return pd.concat(all_dataframes, ignore_index=True)
     
-    def compile_odds_data(self):
+    def compile_odds_data(self,start_date,end_date):
         """オッズデータをコンパイル"""
-        o_csv_folder = os.path.join(self.folder, "O_csv")
-        all_files = [os.path.join(o_csv_folder, f) for f in os.listdir(o_csv_folder) if f.endswith('.csv')]
+        o_csv_folder = os.path.join(self.data_folder, "O_csv")
+        all_files = []
+        for file_name in self.generate_date_list(start_date, end_date):
+            all_files.append(os.path.join(o_csv_folder, f"O{file_name}.csv"))
+
+        all_dataframes = []
+        for filepath in all_files:
+            try:
+                df = pd.read_csv(filepath, encoding='shift-jis')
+            except Exception as e:
+                print(f"読み込みエラー: {filepath} → {e}")
+                continue
+
+            all_dataframes.append(df)
+
+        # すべてのDataFrameをまとめて返す
+        if all_dataframes:
+            return pd.concat(all_dataframes, ignore_index=True)
+        else:
+            return pd.DataFrame()
+
+    def compile_all_odds_data(self,start_date,end_date):
+        """すべてのオッズデータをコンパイル"""
+        o_csv_folder = os.path.join(self.data_folder, "Odds_csv")
+        all_files = []
+        for file_name in self.generate_date_list(start_date, end_date):
+            all_files.append(os.path.join(o_csv_folder, f"Odds{file_name}.csv"))
 
         all_dataframes = []
         for filepath in all_files:
@@ -207,8 +233,9 @@ class DataCompiler(BoatraceAnalyzer):
         else:
             raise ValueError("top_num must be 1, 2, or 3")
     
-    def save_preprocessor(self, filepath):
+    def save_preprocessor(self):
         """前処理情報を保存"""
+        filepath = os.path.join(self.data_folder,"preprocessor.pkl")
         with open(filepath, 'wb') as f:
             pickle.dump({
                 'categorical_cols': self.categorical_cols,
@@ -220,12 +247,14 @@ class DataCompiler(BoatraceAnalyzer):
             }, f)
     
     @classmethod
-    def load_preprocessor(cls, filepath,folder):
+    def load_preprocessor(cls):
         """保存した前処理情報を読み込み"""
+        preprocessor = cls()
+        
+        filepath = os.path.join(preprocessor.data_folder,"preprocessor.pkl")
         with open(filepath, 'rb') as f:
             data = pickle.load(f)
-        
-        preprocessor = cls(folder)
+            
         preprocessor.categorical_cols = data['categorical_cols']
         preprocessor.numeric_cols = data['numeric_cols']
         preprocessor.categories = data['categories']
@@ -241,7 +270,7 @@ class DataCompiler(BoatraceAnalyzer):
         """指定したレースのデータをコンパイルして1行にまとめる"""
         # CSV読み込み
         df = self._format_race_data_(target_date=target_date)
-        
+        df.to_csv("C:/Users/msy-t/boatrace-ai/data/merge_df.csv", index=False, encoding="shift_jis")
         # 指定したレースのデータのみ抽出
         race_data = df[(df['日付'] == target_date) & 
                     (df['レース場'] == place) & 
@@ -319,37 +348,27 @@ class DataCompiler(BoatraceAnalyzer):
     def _format_race_data_(self,target_date="2024-04-01"):
         """レース番組表から結果を予測する用"""
         name = self.generate_date_list(start_date=target_date, end_date=target_date)[0]
-        df_B = pd.read_csv(self.folder+f"\\B_csv\\B{name}.csv", encoding='shift-jis')
+        B_csv_path = os.path.join(self.data_folder, "B_csv",f"B{name}.csv")
+        df_B = pd.read_csv(B_csv_path, encoding='shift-jis')
         
         date = "20" + name[:2] + "-" + name[2:4] + "-" + name[4:6]
         
         df_B['日付'] = date
         
-        # 1年前の日付を取得
-        three_months_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=366)).strftime("%Y-%m-%d")
-        # 1日前の日付を取得
-        one_day_ago = (datetime.strptime(name, "%y%m%d") - timedelta(days=1)).strftime("%Y-%m-%d")
         # 基本データの取得
-        base_df = self.get_base_data(start_date=three_months_ago, end_date=one_day_ago, venue="全国") 
+        base_df = pd.read_csv(self.data_folder+f"/agg_csv/Agg{name}.csv", encoding="shift_jis")
+        
         # データを結合する
-        merged_df = pd.merge(df_B, base_df[['登録番号', '艇番', '平均ST','全体平均ST']], on=['登録番号', '艇番'], how='left')
+        merged_df = pd.merge(df_B, base_df, on=['登録番号', '艇番'], how='left')
         
-        # 1着率を計算
-        merged_df['1着率'] = base_df['勝利回数'] / base_df['出走数']
-        # 2着率を計算
-        merged_df['2着率'] = base_df['2着回数'] / base_df['出走数']
-        # 3着率を計算
-        merged_df['3着率'] = base_df['3着回数'] / base_df['出走数']
-        # その他
-        merged_df['逃げ率'] = base_df['逃げ'] / base_df['出走数']
-        merged_df['逃し率'] = base_df['逃し'] / base_df['出走数']
-        merged_df['差し率'] = base_df['差し'] / base_df['出走数']
-        merged_df['まくり率'] = base_df['まくり'] / base_df['出走数']
-        merged_df['まくり差し率'] = base_df['まくり差し'] / base_df['出走数']
-        merged_df['差され率'] = base_df['差され'] / base_df['出走数']
-        merged_df['まくられ率'] = base_df['まくられ'] / base_df['出走数']
-        merged_df['まくり差され率'] = base_df['まくり差され'] / base_df['出走数']
-        
+        for col_name, numerator_col in [
+            ('1着率', '勝利回数'),('2着率', '2着回数'),('3着率', '3着回数'),
+            ('逃げ率', '逃げ'),('逃し率', '逃し'),('差し率', '差し'),
+            ('まくり率', 'まくり'),('まくり差し率', 'まくり差し'),('差され率', '差され'),
+            ('まくられ率', 'まくられ'),('まくり差され率', 'まくり差され')]:
+            merged_df[col_name] = merged_df[numerator_col] / merged_df['出走数'].replace(0, pd.NA)
+            merged_df[col_name] = merged_df[col_name].fillna(0)
+
         # 日付を一番左のカラムに移動
         cols = merged_df.columns.tolist()
         cols = ['日付'] + [col for col in cols if col != '日付']

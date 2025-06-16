@@ -4,8 +4,9 @@ import re
 import pandas as pd
 
 class BoatraceBase:
-    def __init__(self, folder):
-        self.folder = folder
+    def __init__(self):
+        # 基本パスを記入
+        self.data_folder = os.path.join(r"C:\Users\msy-t\boatrace-ai","data")
 
     def generate_date_list(self, start_date, end_date):
         """
@@ -34,7 +35,7 @@ class BoatraceBase:
         """
         指定されたフォルダ内のファイル名を調べて、欠けている日付をリストとして返す
         """
-        path = self.folder + "\\" + BorK + "_lzh"
+        path = os.path.join(self.data_folder,  f"{BorK}_lzh")
         
         # 指定されたフォルダ内の .lzh ファイル名を取得
         file_list = [f for f in os.listdir(path) if f.endswith(".lzh")]
