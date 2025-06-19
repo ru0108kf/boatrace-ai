@@ -16,8 +16,8 @@ class BoatraceML(BoatraceBase):
     def run_pipeline(self,
                      train_start_date,train_end_date,test_start_date,test_end_date,compile=True):
         if compile==True:
-            train_df = self.data_compiler.compile_race_data(start_date=train_start_date,end_date=train_end_date)
-            test_df = self.data_compiler.compile_race_data(start_date=test_start_date,end_date=test_end_date)
+            train_df = self.data_compiler.compile_race_data(start_date=train_start_date,end_date=train_end_date,target_places=None)
+            test_df = self.data_compiler.compile_race_data(start_date=test_start_date,end_date=test_end_date,target_places=None)
             train_df.to_csv(self.data_folder+"/agg_results/train_df.csv",index=False, encoding='shift-jis')
             test_df.to_csv(self.data_folder+"/agg_results/test_df.csv",index=False, encoding='shift-jis')
 
@@ -113,8 +113,8 @@ class BoatraceML(BoatraceBase):
         
     def run_pipeline_validation(self,result_df,compile=True):
         if compile:
-            O_df = self.data_compiler.compile_odds_data(start_date="2025-03-01",end_date="2025-05-31")
-            all_odds_df = self.data_compiler.compile_all_odds_data(start_date="2025-03-01",end_date="2025-05-31")
+            O_df = self.data_compiler.compile_odds_data(start_date="2025-03-01",end_date="2025-06-18")
+            all_odds_df = self.data_compiler.compile_all_odds_data(start_date="2025-03-01",end_date="2025-06-18")
             O_df.to_csv(self.data_folder+"/agg_results/O_df.csv",index=False, encoding='shift-jis')
             all_odds_df.to_csv(self.data_folder+"/agg_results/odds_df.csv",index=False, encoding='shift-jis')
         O_df = pd.read_csv(self.data_folder+"/agg_results/O_df.csv", encoding='shift-jis')

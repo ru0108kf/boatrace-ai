@@ -5,7 +5,7 @@ from boatrace.latestscraper import BoatraceLatestDataScraper
 from boatrace.analyzer import BoatraceAnalyzer
 
 # =====================変更してOK======================
-today_date = "2025-04-30"#datetime.now().strftime('%Y-%m-%d')
+today_date = "2025-06-19"#datetime.now().strftime('%Y-%m-%d')
 race_no = 1
 venue = "戸田"
 # ====================================================

@@ -7,7 +7,7 @@ from boatrace.crawler import BoatRaceOddsScraper
 import pandas as pd
 
 # =====================変更してOK======================
-today_date = "2025-06-18"#datetime.now().strftime('%Y-%m-%d')
+today_date = "2025-06-19"#datetime.now().strftime('%Y-%m-%d')
 main = False
 practice = False
 # ====================================================
@@ -19,8 +19,8 @@ boatrace.scraper.run(today_date)
 
 # メイン処理
 if main:
-    result_df,model_one,model_defeat_one,model_twos,model_threes = boatrace_ml.run_pipeline(compile=True,
-        train_start_date = "2021-01-01",train_end_date = "2025-04-30",test_start_date = "2025-05-01",test_end_date = "2025-05-31")
+    result_df,model_one,model_defeat_one,model_twos,model_threes = boatrace_ml.run_pipeline(compile=False,
+        train_start_date = "2021-01-01",train_end_date = "2025-05-31",test_start_date = "2025-06-01",test_end_date = "2025-06-18")
         
     # モデルを保存する
     result_df.to_csv(folder+"/agg_results/result_df.csv", index=False, encoding="shift_jis")
@@ -31,7 +31,7 @@ if main:
     
 # テスト
 result_df = pd.read_csv(folder+"/agg_results/result_df.csv", encoding="shift_jis")
-boatrace_ml.run_pipeline_validation(compile=False,result_df=result_df)
+boatrace_ml.run_pipeline_validation(compile=True,result_df=result_df)
 
 if practice:
     # モデルの読み込み
@@ -46,11 +46,11 @@ if practice:
     numbers = list(map(float, input_str.split()))
     Exhibition_time = {1: numbers[0],2: numbers[1],3: numbers[2],4: numbers[3],5: numbers[4],6: numbers[5]}
     # ====================================================
-    race_no = 11
-    venue = "桐生"
-    weather="曇り"
-    wind_dir="北西"#無風
-    wind_spd=2
+    race_no = 4
+    venue = "住之江"
+    weather="晴れ"
+    wind_dir="北東"#無風
+    wind_spd=1
     wave_hgt=1
     # ====================================================
     date_obj = datetime.strptime(today_date, '%Y-%m-%d')

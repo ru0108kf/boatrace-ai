@@ -274,8 +274,8 @@ if __name__ == "__main__":
     pd.set_option('display.width', None)
 
     # 処理する日付範囲
-    start_date_test = "2025-05-22" 
-    end_date_test = "2025-05-31" 
+    start_date_test = "2025-06-01" 
+    end_date_test = "2025-06-18" 
     print(f"スクレイピング開始: {start_date_test} ～ {end_date_test}")
     
     base_handler = BoatraceBase()

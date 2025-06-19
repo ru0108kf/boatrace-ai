@@ -214,7 +214,7 @@ class BettingStrategyEvaluator:
                 if i != j
             }
             
-            combinations, strategy_name = self._create_formation_biased_odds_strategy(P_1st, P_2nd, P_3rd, row)
+            combinations,model_probability,expected_value,strategy_name = self._create_formation_top_strategy(P_1st, P_2nd, P_3rd, row)
             
             if len(combinations) != 0:
                 bets += 1
@@ -224,6 +224,8 @@ class BettingStrategyEvaluator:
             bets_df.at[idx, 'predicted_patterns'] = ", ".join(combinations)
             bets_df.at[idx, 'bet_count'] = len(combinations)
             bets_df.at[idx, 'bet_combinations'] = combinations
+            bets_df.at[idx, 'expected_value'] = ", ".join([f"{x:.2f}" for x in expected_value])
+            bets_df.at[idx, 'model_probability'] = ", ".join([f"{x*100:.2f}%" for x in model_probability])
             
             # 的中チェック
             actual = row['組合せ']
@@ -266,13 +268,13 @@ class BettingStrategyEvaluator:
             for _, row in won_races.iterrows():
                 print(f"{row['日付']} {row['レース場']} {row['レース番号']}R: "
                     f"予測 {row['predicted_patterns']} → 結果 {row['組合せ']} "
-                    f"配当 {row['払戻金']}円 " f"戦術 {row['strategy_used']} ")
+                    f"配当 {row['払戻金']}円 " f"戦術 {row['strategy_used']} " f"期待値 {row['expected_value']} " f"確率 {row['model_probability']}")
         else:
             print("\n的中したレースはありませんでした")
         
         return bets_df, roi
         
-    def _create_formation_top_strategy(self, P_1st, P_2nd, P_3rd, all_odds_for_race, expected_value_threshold=1.0, probability_threshold=0.02, sort="e", n_top_combos=3):
+    def _create_formation_top_strategy(self, P_1st, P_2nd, P_3rd, all_odds_for_race, expected_value_threshold=1.0, probability_threshold=0.003, sort="e", n_top_combos=3):
         """
         1着、2着、3着の確率と各組み合わせのオッズを考慮し、期待値か確率の高い順に上位n個の三連単組み合わせを返す
         expected_value_threshold: この閾値未満の期待値の組み合わせは除外する
@@ -335,16 +337,16 @@ class BettingStrategyEvaluator:
             expected_value = [ev for combo, mp, ev in combo_mp_ev[:n_top_combos]]
 
             if top_combos:
-                return top_combos, strategy_name
+                return top_combos, model_probability,expected_value,strategy_name
             else:
-                return [], "有効な組み合わせなし"
+                return [],[],[], "有効な組み合わせなし"
 
         except Exception as e:
             print(f"Error : {str(e)}")
             print(all_odds_for_race)
-            return [], "エラー発生"
+            return [],[],[], "エラー発生"
 
-    def _create_formation_biased_odds_strategy(self, P_1st, P_2nd, P_3rd, all_odds_for_race, expected_value_threshold=1.0, n_top_combos=6, min_prob_advantage=0.02, min_odds=10.0,alpha = 0):
+    def _create_formation_biased_odds_strategy(self, P_1st, P_2nd, P_3rd, all_odds_for_race, expected_value_threshold=1.0, n_top_combos=6, min_prob_advantage=0.005, min_odds=10.0,alpha = 0):
         """
         1着、2着、3着の確率と各組み合わせのオッズを考慮し、
         「モデル確率が市場確率より高く、かつ期待値が閾値を超える」組み合わせを、
@@ -359,8 +361,6 @@ class BettingStrategyEvaluator:
         combo_results = []  # (組み合わせ, 期待値, モデル確率, 市場確率) を保存するリスト
         strategy_name = f"上位{n_top_combos}組み合わせ（市場歪み狙い、差{min_prob_advantage*100:.1f}%以上）"
 
-        if P_1st[0]>=0.7:
-            return [], "イン逃げなので賭けない"
         try:
             first_candidates = [i for i in range(1, 7) if P_1st[i - 1] > 0]
 
@@ -407,7 +407,7 @@ class BettingStrategyEvaluator:
                             
                             combo_results.append((combo_str, adjusted_expected_value, model_probability, market_probability))
 
-            combo_results.sort(key=lambda x: x[1], reverse=True) # 期待値の高い順
+            combo_results.sort(key=lambda x: x[2], reverse=True) # 確率の高い順
 
             top_combos = [combo for combo, ev, mp, mkp in combo_results[:n_top_combos]]
 

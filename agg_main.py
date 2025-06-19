@@ -28,7 +28,7 @@ boatrace.scraper.run(end_date)
 #sasi_makuri_results.to_csv(f"{folder}/agg_results/sasi_makuri_national_agg.csv", index=False, encoding="shift_jis")
 
 # 1年分の統計データを保存
-#analyzer.save_agg_data(start_date,end_date)
+analyzer.save_agg_data(start_date,end_date)
 
 # BとKのデータを結合
-#analyzer.get_merge_data(start_date,end_date)
+analyzer.get_merge_data(start_date,end_date)
