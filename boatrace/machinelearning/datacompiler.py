@@ -270,7 +270,6 @@ class DataCompiler(BoatraceAnalyzer):
         """指定したレースのデータをコンパイルして1行にまとめる"""
         # CSV読み込み
         df = self._format_race_data_(target_date=target_date)
-        df.to_csv("C:/Users/msy-t/boatrace-ai/data/merge_df.csv", index=False, encoding="shift_jis")
         # 指定したレースのデータのみ抽出
         race_data = df[(df['日付'] == target_date) & 
                     (df['レース場'] == place) & 

@@ -31,4 +31,4 @@ boatrace.scraper.run(end_date)
 #analyzer.save_agg_data(start_date,end_date)
 
 # BとKのデータを結合
-analyzer.get_merge_data(start_date,end_date)
+#analyzer.get_merge_data(start_date,end_date)

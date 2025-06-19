@@ -376,4 +376,9 @@ def run(today_date):
         else:
             scraperB.scrape_and_process_data(start_date=current_date,end_date=today_date)
     
-    
+def run2(start_date,end_date):
+    scraperK = BoatraceScraper(BorK="K")
+    scraperK.scrape_and_process_data(start_date=start_date,end_date=end_date)
+
+    scraperB = BoatraceScraper(BorK="B")
+    scraperB.scrape_and_process_data(start_date=start_date,end_date=end_date)  

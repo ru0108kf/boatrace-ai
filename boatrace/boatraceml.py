@@ -13,8 +13,8 @@ class BoatraceML(BoatraceBase):
         self.model_trainer = ModelTrainer()
         self.evaluator = BettingStrategyEvaluator()
     
-    def run_pipeline(self,compile=True,
-                     train_start_date = "2023-04-01",train_end_date = "2025-03-31",test_start_date = "2024-04-01",test_end_date = "2025-04-30"):
+    def run_pipeline(self,
+                     train_start_date,train_end_date,test_start_date,test_end_date,compile=True):
         if compile==True:
             train_df = self.data_compiler.compile_race_data(start_date=train_start_date,end_date=train_end_date)
             test_df = self.data_compiler.compile_race_data(start_date=test_start_date,end_date=test_end_date)
@@ -183,4 +183,4 @@ class BoatraceML(BoatraceBase):
             predictions_df.reset_index(drop=True),
             probabilities_df.reset_index(drop=True)], axis=1)
                 
-        self.evaluator.Trifecta_jissen(final_new_df,all_odds)
+        self.evaluator.Trifecta_practice(final_new_df,all_odds)

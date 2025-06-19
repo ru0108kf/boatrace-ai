@@ -3,6 +3,7 @@ import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, log_loss, classification_report, confusion_matrix, roc_auc_score, precision_score, recall_score
 import matplotlib.pyplot as plt
+from sklearn.model_selection import TimeSeriesSplit
 import japanize_matplotlib
 
 class ModelTrainer:
@@ -14,9 +15,16 @@ class ModelTrainer:
         """LightGBMを使用した二値分類モデルの訓練（内部メソッド）"""
         # ======== データ分割 ========
         # 元のインデックスを保持
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X, y, df.index, test_size=0.2, random_state=42
-        )
+        tscv = TimeSeriesSplit(n_splits=5) # 例として5分割
+
+        for train_index, test_index in tscv.split(X):
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+            idx_train, idx_test = df.index[train_index], df.index[test_index]
+
+        #X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
+        #    X, y, df.index, test_size=0.2, random_state=42
+        #)
         
         # ======== LightGBMモデル構築 ========
         # パラメータ設定
@@ -73,9 +81,12 @@ class ModelTrainer:
         """LightGBMを使用した多クラス分類モデルの訓練（内部メソッド）"""
         # ======== データ分割 ========
         # 元のインデックスを保持
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X, y-1, df.index, test_size=0.2, random_state=42
-        )
+        tscv = TimeSeriesSplit(n_splits=5) # 例として5分割
+
+        for train_index, test_index in tscv.split(X):
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+            idx_train, idx_test = df.index[train_index], df.index[test_index]
 
         # ======== モデル構築（LightGBM） ========
         model = lgb.LGBMClassifier(
@@ -123,9 +134,13 @@ class ModelTrainer:
         df_filtered = df.iloc[mask]
         
         # データ分割（元のコードと同様）
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X_filtered, y_filtered, df_filtered.index, test_size=0.2, random_state=42
-        )
+        tscv = TimeSeriesSplit(n_splits=5) # 例として5分割
+
+        for train_index, test_index in tscv.split(X_filtered):
+            X_train, X_test = X_filtered.iloc[train_index], X_filtered.iloc[test_index]
+            y_train, y_test = y_filtered[train_index], y_filtered[test_index]
+            idx_train, idx_test = df_filtered.index[train_index], df_filtered.index[test_index]
+         
         # ======== モデル構築（LightGBM） ========
         model = lgb.LGBMClassifier(
             objective='multiclass',
@@ -188,9 +203,12 @@ class ModelTrainer:
 
         # 以降は元の処理と同じ（データ分割・モデル訓練・評価）
         # ================================================
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X_filtered, y_mapped, df_filtered.index, test_size=0.2, random_state=42
-        )
+        tscv = TimeSeriesSplit(n_splits=5) # 例として5分割
+
+        for train_index, test_index in tscv.split(X_filtered):
+            X_train, X_test = X_filtered.iloc[train_index], X_filtered.iloc[test_index]
+            y_train, y_test = y_mapped[train_index], y_mapped[test_index]
+            idx_train, idx_test = df_filtered.index[train_index], df_filtered.index[test_index]
 
         model = lgb.LGBMClassifier(
             objective='multiclass',
@@ -261,9 +279,12 @@ class ModelTrainer:
 
         # 以降は元の処理と同じ（データ分割・モデル訓練・評価）
         # ================================================
-        X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(
-            X_filtered, y_mapped, df_filtered.index, test_size=0.2, random_state=42
-        )
+        tscv = TimeSeriesSplit(n_splits=5) # 例として5分割
+
+        for train_index, test_index in tscv.split(X_filtered):
+            X_train, X_test = X_filtered.iloc[train_index], X_filtered.iloc[test_index]
+            y_train, y_test = y_mapped[train_index], y_mapped[test_index]
+            idx_train, idx_test = df_filtered.index[train_index], df_filtered.index[test_index]
 
         model = lgb.LGBMClassifier(
             objective='multiclass',
