@@ -6,7 +6,7 @@ import pandas as pd
 class BoatraceBase:
     def __init__(self):
         # 基本パスを記入
-        self.data_folder = os.path.join(r"C:\Users\archi\boatrace-ai","data")
+        self.data_folder = os.path.join(r"C:\Users\msy-t\boatrace-ai","data")
 
     def generate_date_list(self, start_date, end_date):
         """

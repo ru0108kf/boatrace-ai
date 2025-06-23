@@ -357,6 +357,7 @@ class BoatraceScraper(BoatraceBase):
         print("全処理完了")
 
 def run(today_date):
+    """現在まで抜けているデータをスクレイピングして保存"""
     today_datetime = datetime.strptime(today_date, '%Y-%m-%d')
     yesterday = (today_datetime - timedelta(days=1)).strftime('%Y-%m-%d')
 
@@ -376,7 +377,8 @@ def run(today_date):
         else:
             scraperB.scrape_and_process_data(start_date=current_date,end_date=today_date)
     
-def run2(start_date,end_date):
+def add_new_data(start_date,end_date):
+    """データを増やすときに使用"""
     scraperK = BoatraceScraper(BorK="K")
     scraperK.scrape_and_process_data(start_date=start_date,end_date=end_date)
 

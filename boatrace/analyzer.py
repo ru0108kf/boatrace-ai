@@ -391,3 +391,23 @@ class BoatraceAnalyzer(BoatraceBase):
         
         combined_df = pd.concat(df_list, ignore_index=True)
         return combined_df
+    
+def run_agg(today_date):
+    today_datetime = datetime.strptime(today_date, '%Y-%m-%d')
+    analyzer = BoatraceAnalyzer()
+    file_name = today_datetime.strftime('%y%m%d')
+    path = os.path.join(analyzer.data_folder,"agg_csv", f"Agg{file_name}.csv")
+    if not os.path.exists(path):
+        print(f"統計データ取得開始 {file_name}")
+        # 1年分の統計データを保存
+        analyzer.save_agg_data(start_date=today_date,end_date=today_date)
+        print("統計データ取得完了")
+
+def run_merge(target_date):
+    today_datetime = datetime.strptime(target_date, '%Y-%m-%d')
+    analyzer = BoatraceAnalyzer()
+    file_name = today_datetime.strftime('%y%m%d')
+    path = os.path.join(analyzer.data_folder,"merged_csv", f"{file_name}.csv")
+    if os.path.exists(path):
+        # BとKのデータを結合
+        analyzer.get_merge_data(start_date=target_date,end_date=target_date)
