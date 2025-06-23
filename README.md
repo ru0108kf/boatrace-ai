@@ -33,7 +33,7 @@ boatrace-ai-analyzer/
 │   └── agg_results # 集計結果をまとめたフォルダ
 ├── boatrace/
 │   ├── base/
-│   │   └── base.py  # 処理をまとめたクラス  # 処理をまとめたクラス
+│   │   └── base.py  # 処理や情報をまとめたクラス
 │   ├── machinelearning/
 │   │   ├── bettingstrategyevaluator.py
 │   │   ├── datacompiler.py
